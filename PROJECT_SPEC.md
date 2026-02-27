@@ -254,11 +254,11 @@ Returns results from indexed code
 ## 📋 Feature Checklist
 
 ### MVP (Week 1: Feb 27 - Mar 5)
-- [ ] **Streamlit UI Setup**
-  - [ ] Folder selection widget
-  - [ ] KB name input field
-  - [ ] Generate button
-  - [ ] Status display area
+- [x] **Streamlit UI Setup**
+  - [x] Folder selection widget
+  - [x] KB name input field
+  - [x] Generate button
+  - [x] Status display area
   
 - [ ] **Repomix Integration**
   - [ ] Subprocess wrapper for repomix
