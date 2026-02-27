@@ -1,430 +1,480 @@
-# docs-mcp & md-mcp: Project Specification
+# Code Folders MCP: Project Specification
 
-**Last Updated:** 2026-02-18  
-**Status:** Design Phase  
-**Architecture:** Two-tier (library + application)
-
----
-
-## 🎯 Vision
-
-Create a robust, production-ready MCP knowledge base system split into:
-1. **md-mcp** - Reusable PyPI library for markdown-based knowledge retrieval
-2. **docs-mcp** - User-friendly application for document ingestion and management
+**Last Updated:** 2026-02-27 (Pivoted to code-folders-first)  
+**Status:** MVP Development  
+**Architecture:** Single Streamlit app using md-mcp
 
 ---
 
-## 📦 Project 1: md-mcp (PyPI Library)
+## 🎯 Vision (Revised)
 
-**Purpose:** Generic markdown knowledge base engine with MCP protocol support
+Build a **code-folders-first MCP knowledge base** that:
+1. Takes code folders as input
+2. Uses Repomix to generate markdown per folder
+3. Indexes with md-mcp (already live on PyPI)
+4. Exposes via MCP for Claude Desktop
+
+**Out of scope for MVP:** PDF, DOCX, web scraping. We'll add those later.
+
+---
+
+## 📦 Single Application: Code Folders MCP
 
 ### Core Responsibilities
 
-#### 1. Knowledge Base Management
-- Create, load, and manage multiple knowledge bases
-- Support namespaced/isolated KBs (multi-tenant ready)
-- Schema: `KnowledgeBase(name, path, metadata, config)`
-- Operations: `create()`, `load()`, `delete()`, `list()`
+#### 1. Folder Selection UI (Streamlit)
+- Multi-select folder browser
+- Display selected folders with remove/reorder
+- Validate folder paths exist
+- Support drag-drop (if Streamlit supports)
 
-#### 2. Chunking Strategies
-- **Keyword chunking:** Header-based, paragraph-based, custom delimiters
-- **Semantic chunking:** Embedding-based boundary detection
-- Configurable chunk size (tokens/chars)
-- Overlap support for context continuity
-- Metadata preservation (file, line numbers, headers)
+#### 2. Repomix Integration
+- Run repomix as subprocess on each folder
+- Generate `{folder-name}.md` per folder
+- Show progress per folder (progress bar)
+- Handle repomix errors gracefully
+- Store generated .md files in workspace
 
-#### 3. Indexing & Storage
-- **Keyword index:** Full-text search (sqlite FTS5 or similar)
-- **Semantic index:** Vector embeddings (FAISS, ChromaDB, or Qdrant)
-- Incremental updates: hash-based change detection
-- Efficient rebuild: only reprocess modified files
+#### 3. Knowledge Base Creation
+- User provides KB name (e.g., "my-project")
+- Create md-mcp knowledge base from generated .md files
+- Index with hybrid search (keyword + semantic)
+- Store KB in user's home directory (`~/.code-folders-mcp/`)
 
-#### 4. Search & Retrieval
-- **Hybrid search:** Combine keyword + semantic results
-- Configurable weighting: `keyword_weight`, `semantic_weight`
-- Ranking/scoring with source attribution
-- Return format:
-  ```python
-  SearchResult(
-      text: str,
-      score: float,
-      source_file: str,
-      line_range: tuple[int, int],
-      chunk_id: str,
-      metadata: dict
-  )
-  ```
+#### 4. MCP Server Management
+- Start/stop MCP server via UI
+- Display server status (running/stopped)
+- Show MCP endpoint details
+- Generate Claude Desktop config snippet
 
-#### 5. MCP Protocol Server
-- Implement MCP server specification
-- **Tools exposed:**
-  - `search_knowledge(query, kb_name, top_k, hybrid_weights)`
-  - `list_sources(kb_name)` - enumerate all indexed files
-  - `rebuild_index(kb_name, incremental)` - force reindex
-  - `get_kb_stats(kb_name)` - chunks, files, last updated
-- **Resources:**
-  - Expose indexed markdown files as MCP resources
-- Integrate with Claude Desktop, Cline, Cursor, etc.
+#### 5. Configuration Export
+- Generate `claude_desktop_config.json` snippet
+- Copy-to-clipboard button
+- Show installation instructions
+- Support multiple KBs in one config
 
-#### 6. Configuration Management
-- Per-KB config files (YAML/JSON)
-- Settings:
-  - Embedding model (local/API)
-  - Chunking strategy and params
-  - Search weights
-  - File patterns (include/exclude)
-  - Update frequency
-
-#### 7. Source Attribution
-- Every search result includes:
-  - Source file path
-  - Line number range
-  - Section headers (breadcrumb)
-  - Last modified timestamp
-- Enables citation and follow-up reading
-
-### API Design (Python)
-
-```python
-from md_mcp import KnowledgeBase, ChunkingStrategy, SearchConfig
-
-# Create/load KB
-kb = KnowledgeBase.create(
-    name="my-project",
-    source_path="./docs",
-    chunking=ChunkingStrategy.SEMANTIC,
-    embedding_model="sentence-transformers/all-MiniLM-L6-v2"
-)
-
-# Index documents
-kb.index(incremental=True)
-
-# Search with hybrid mode
-results = kb.search(
-    query="how to authenticate users",
-    top_k=5,
-    config=SearchConfig(keyword_weight=0.3, semantic_weight=0.7)
-)
-
-for result in results:
-    print(f"{result.source_file}:{result.line_range[0]}-{result.line_range[1]}")
-    print(f"Score: {result.score}")
-    print(result.text)
-```
-
-### Dependencies
-- **Embedding:** `sentence-transformers`, `openai` (optional)
-- **Vector DB:** `faiss-cpu`, `chromadb`, or `qdrant-client`
-- **Search:** `sqlite3` (built-in FTS5) or `whoosh`
-- **MCP:** `mcp` (official MCP Python SDK)
-- **Utils:** `pydantic`, `pyyaml`, `watchdog` (file monitoring)
-
-### Distribution
-- PyPI package: `pip install md-mcp`
-- Versioning: Semantic (0.1.0 → 1.0.0)
-- License: MIT or Apache 2.0
+#### 6. Search Testing (Nice-to-Have)
+- In-app search UI to test KB
+- Display results with source attribution
+- Validate search quality before connecting to Claude
 
 ---
 
-## 🖥️ Project 2: docs-mcp (GUI Application)
+## 🎨 UI Mockup (Streamlit)
 
-**Purpose:** User-friendly document ingestion and knowledge base builder
-
-### Core Responsibilities
-
-#### 1. Document Picker Interface
-- **GUI Framework:** Streamlit or Gradio (rapid dev) OR PyQt/Tkinter (native)
-- File browser with multi-select
-- Drag-and-drop support
-- Folder recursive scanning
-- Preview selected documents
-
-#### 2. Multi-Format Conversion
-- **Supported inputs:**
-  - Code repositories (via Repomix)
-  - PDFs (via `pypdf` or `pdfplumber`)
-  - Office docs: `.docx`, `.xlsx`, `.pptx` (via `python-docx`, `openpyxl`)
-  - Web pages (via `trafilatura` or `beautifulsoup4`)
-  - Plain text: `.txt`, `.md`, `.rst`
-  - Notion exports (ZIP → MD)
-  - HTML files
-- **Conversion pipeline:**
-  1. Detect format
-  2. Extract text
-  3. Convert to Markdown
-  4. Preserve structure (headers, lists, tables)
-
-#### 3. Repomix Integration
-- One-click "Add Repository" button
-- Configure Repomix options:
-  - Include/exclude patterns
-  - Comment handling
-  - Output style (markdown/xml/plain)
-- Output: Single consolidated `.md` file → fed to md-mcp
-
-#### 4. Knowledge Base Configuration UI
-- Create/select KB
-- Set chunking strategy (dropdown)
-- Configure embedding model
-- Set search weights (sliders)
-- Include/exclude file patterns
-
-#### 5. Batch Processing
-- Queue multiple documents/repos
-- Progress tracking with status indicators
-- Error handling and logs
-- Summary report after completion
-
-#### 6. Preview & Testing
-- Search test interface
-- Query KB and see results
-- View source attribution links
-- Export search results
-
-#### 7. MCP Server Management
-- Start/stop MCP server from GUI
-- View server logs
-- Test connection (ping)
-- Copy MCP config for Claude Desktop
-
-### Tech Stack
-
-**Option A: Streamlit (Recommended for MVP)**
-- Fast prototyping
-- Built-in file uploaders
-- Easy deployment (cloud-ready)
-- Good for demos
-
-**Option B: PyQt/Tkinter**
-- Native desktop app
-- Better performance
-- Offline-first
-- More complex
-
-### Workflow Example
+### Main Screen
 
 ```
-User Flow:
-1. Launch docs-mcp GUI
-2. Click "New Knowledge Base" → Name it "ProjectX"
-3. Add sources:
-   - Upload PDF (converted to MD)
-   - Add GitHub repo URL (Repomix → MD)
-   - Drag-drop Word docs (converted to MD)
-4. Configure:
-   - Chunking: Semantic
-   - Embedding: OpenAI ada-002
-   - Weights: 30% keyword, 70% semantic
-5. Click "Build Index" → Progress bar
-6. Test search: "authentication flow" → See results
-7. Click "Start MCP Server" → Copy config to Claude Desktop
-```
-
-### Dependencies
-- `md-mcp` (core library dependency)
-- `streamlit` or `gradio` (GUI)
-- `repomix` (via subprocess or Python wrapper)
-- `pypdf` (PDF extraction)
-- `python-docx` (Word docs)
-- `openpyxl` (Excel)
-- `trafilatura` (web scraping)
-- `pandoc` (universal converter - optional)
-
-### Distribution
-- **Standalone app:** PyInstaller bundle (Windows/Mac/Linux)
-- **Web app:** Deploy to Streamlit Cloud, Hugging Face Spaces
-- **PyPI:** `pip install docs-mcp` (with GUI extras)
-
----
-
-## 🔄 Integration Architecture
-
-```
-┌─────────────────────────────────────┐
-│         docs-mcp (GUI App)          │
-│  ┌───────────────────────────────┐  │
-│  │  Document Ingestion           │  │
-│  │  - PDF, DOCX, Repomix, etc.   │  │
-│  │  - Convert to Markdown        │  │
-│  └───────────┬───────────────────┘  │
-│              │                       │
-│              ▼                       │
-│  ┌───────────────────────────────┐  │
-│  │  md-mcp Library (imported)    │  │
-│  │  - Create KB                  │  │
-│  │  - Index markdown files       │  │
-│  │  - Search & retrieve          │  │
-│  └───────────┬───────────────────┘  │
-└──────────────┼───────────────────────┘
-               │
-               ▼
-    ┌──────────────────────┐
-    │   MCP Server         │
-    │   (exposed tools)    │
-    └──────────┬───────────┘
-               │
-               ▼
-    ┌──────────────────────┐
-    │  Claude Desktop      │
-    │  Cline, Cursor, etc. │
-    └──────────────────────┘
+╔══════════════════════════════════════════════════════════════════╗
+║  Code Folders MCP - Turn Your Codebase into Claude Knowledge    ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                  ║
+║  📁 Selected Folders (3)                                         ║
+║  ┌────────────────────────────────────────────────────────────┐ ║
+║  │ ✓ C:\code\my-project\backend          [Remove]             │ ║
+║  │ ✓ C:\code\my-project\frontend         [Remove]             │ ║
+║  │ ✓ C:\code\shared-utils                [Remove]             │ ║
+║  └────────────────────────────────────────────────────────────┘ ║
+║                                                                  ║
+║  [➕ Add Folder]                                                 ║
+║                                                                  ║
+║  ────────────────────────────────────────────────────────────  ║
+║                                                                  ║
+║  📝 Knowledge Base Name                                          ║
+║  ┌────────────────────────────────────────────────────────────┐ ║
+║  │ my-project                                                  │ ║
+║  └────────────────────────────────────────────────────────────┘ ║
+║                                                                  ║
+║  [🚀 Generate Knowledge Base]                                   ║
+║                                                                  ║
+║  ────────────────────────────────────────────────────────────  ║
+║                                                                  ║
+║  📊 Status                                                       ║
+║  ┌────────────────────────────────────────────────────────────┐ ║
+║  │ ✅ Repomix: backend.md generated (4.2 MB)                   │ ║
+║  │ ✅ Repomix: frontend.md generated (3.1 MB)                  │ ║
+║  │ ✅ Repomix: shared-utils.md generated (512 KB)              │ ║
+║  │ ✅ KB indexed: 3 files, 12,450 chunks                       │ ║
+║  └────────────────────────────────────────────────────────────┘ ║
+║                                                                  ║
+║  🔧 MCP Server                                                   ║
+║  ┌────────────────────────────────────────────────────────────┐ ║
+║  │ Status: Running on stdio                                    │ ║
+║  │ [⏸ Stop Server]                                             │ ║
+║  │                                                              │ ║
+║  │ Claude Desktop Config:                                       │ ║
+║  │ ┌──────────────────────────────────────────────────────┐   │ ║
+║  │ │ {                                                      │   │ ║
+║  │ │   "mcpServers": {                                      │   │ ║
+║  │ │     "my-project": {                                    │   │ ║
+║  │ │       "command": "python",                             │   │ ║
+║  │ │       "args": ["-m", "md_mcp.server",                  │   │ ║
+║  │ │                "--kb=my-project"]                      │   │ ║
+║  │ │     }                                                   │   │ ║
+║  │ │   }                                                     │   │ ║
+║  │ │ }                                                       │   │ ║
+║  │ └──────────────────────────────────────────────────────┘   │ ║
+║  │ [📋 Copy to Clipboard]                                      │ ║
+║  └────────────────────────────────────────────────────────────┘ ║
+║                                                                  ║
+║  🔍 Test Search (Optional)                                       ║
+║  ┌────────────────────────────────────────────────────────────┐ ║
+║  │ Query: how does authentication work?                       │ ║
+║  │ [Search]                                                    │ ║
+║  │                                                              │ ║
+║  │ Results (3):                                                │ ║
+║  │ 1. backend.md:234-256 (score: 0.89)                        │ ║
+║  │    "The authentication flow uses JWT tokens..."            │ ║
+║  │                                                              │ ║
+║  │ 2. frontend.md:89-102 (score: 0.76)                        │ ║
+║  │    "Login component sends credentials to /api/auth..."     │ ║
+║  └────────────────────────────────────────────────────────────┘ ║
+╚══════════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
-## 📋 Feature Matrix
+## 🔄 Data Flow
 
-| Feature | md-mcp (Library) | docs-mcp (App) |
-|---------|------------------|----------------|
-| Knowledge base CRUD | ✅ | via md-mcp |
-| Markdown chunking | ✅ | - |
-| Semantic chunking | ✅ | - |
-| Keyword search | ✅ | - |
-| Semantic search | ✅ | - |
-| Hybrid search | ✅ | - |
-| Source attribution | ✅ | - |
-| Incremental indexing | ✅ | - |
-| Multi-KB support | ✅ | - |
-| MCP server protocol | ✅ | - |
-| GUI file picker | - | ✅ |
-| PDF conversion | - | ✅ |
-| Office doc conversion | - | ✅ |
-| Repomix integration | - | ✅ |
-| Web scraping | - | ✅ |
-| Batch processing | - | ✅ |
-| Config UI | - | ✅ |
-| Search testing UI | - | ✅ |
-| MCP server controls | - | ✅ |
-
----
-
-## 🚀 Development Phases
-
-### Phase 1: md-mcp Core (2-3 weeks)
-- [ ] Project setup (Poetry, tests, CI)
-- [ ] Knowledge base CRUD
-- [ ] Keyword chunking + FTS index
-- [ ] Semantic chunking + vector index
-- [ ] Hybrid search implementation
-- [ ] Source attribution
-- [ ] Incremental indexing
-- [ ] Unit tests (>80% coverage)
-
-### Phase 2: MCP Protocol (1 week)
-- [ ] Implement MCP server
-- [ ] Define tools (search, list, rebuild, stats)
-- [ ] Test with Claude Desktop
-- [ ] Documentation for integration
-
-### Phase 3: docs-mcp GUI (2 weeks)
-- [ ] Streamlit app scaffold
-- [ ] File picker + drag-drop
-- [ ] PDF conversion
-- [ ] Office doc conversion
-- [ ] Repomix integration
-- [ ] KB config UI
-- [ ] Build/index workflow
-
-### Phase 4: Polish & Release (1 week)
-- [ ] Error handling
-- [ ] Logging
-- [ ] User docs + tutorials
-- [ ] PyPI release (md-mcp)
-- [ ] Package docs-mcp (PyInstaller or web)
-- [ ] Demo video
-- [ ] GitHub repo (separate repos for md-mcp and docs-mcp)
-
-**Total: ~7-8 weeks to production**
-
----
-
-## 📁 Project Structure
-
-### md-mcp (Library)
+### Step 1: User Adds Folders
 ```
-md-mcp/
-├── src/
-│   └── md_mcp/
-│       ├── __init__.py
-│       ├── knowledge_base.py      # KB management
-│       ├── chunking.py            # Chunking strategies
-│       ├── indexing.py            # FTS + vector indexing
-│       ├── search.py              # Hybrid search
-│       ├── mcp_server.py          # MCP protocol
-│       ├── config.py              # Configuration
-│       └── utils.py
-├── tests/
-├── docs/
-├── pyproject.toml
-├── README.md
-└── LICENSE
+User clicks "Add Folder"
+    │
+    ▼
+File browser dialog
+    │
+    ▼
+Selected folder added to list
+    │
+    ▼
+Display in UI
 ```
 
-### docs-mcp (Application)
+### Step 2: Generate Knowledge Base
 ```
-docs-mcp/
-├── src/
-│   └── docs_mcp/
-│       ├── __init__.py
-│       ├── app.py                 # Streamlit entry point
-│       ├── converters/
-│       │   ├── pdf.py
-│       │   ├── office.py
-│       │   ├── repomix.py
-│       │   └── web.py
-│       ├── ui/
-│       │   ├── file_picker.py
-│       │   ├── config_panel.py
-│       │   └── search_test.py
-│       └── utils.py
-├── tests/
-├── docs/
-├── pyproject.toml
-├── README.md
-└── requirements.txt
+User clicks "Generate Knowledge Base"
+    │
+    ├──► Validate: KB name not empty
+    ├──► Validate: At least one folder selected
+    │
+    ▼
+For each folder:
+    │
+    ├──► Create temp dir: ~/.code-folders-mcp/temp/
+    │
+    ├──► Run: repomix --output {folder-name}.md --style markdown
+    │     (Show progress bar)
+    │
+    ├──► Move {folder-name}.md to KB workspace
+    │
+    ▼
+All folders processed
+    │
+    ▼
+Create md-mcp KB:
+    KnowledgeBase.create(
+        name=user_kb_name,
+        source_files=[...generated .md files]
+    )
+    │
+    ▼
+Index with md-mcp:
+    kb.index()
+    │
+    ▼
+Display stats:
+    - Number of files indexed
+    - Total chunks
+    - KB size
+```
+
+### Step 3: Start MCP Server
+```
+User clicks "Start MCP Server"
+    │
+    ▼
+md-mcp starts server:
+    kb.start_mcp_server(transport="stdio")
+    │
+    ▼
+Server status: Running
+    │
+    ▼
+Generate Claude config snippet
+    │
+    ▼
+Display in UI with copy button
+```
+
+### Step 4: Connect to Claude
+```
+User copies config snippet
+    │
+    ▼
+Paste into:
+    macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+    Windows: %APPDATA%\Claude\claude_desktop_config.json
+    Linux: ~/.config/Claude/claude_desktop_config.json
+    │
+    ▼
+Restart Claude Desktop
+    │
+    ▼
+Claude connects to MCP server
+    │
+    ▼
+User can ask: "How does the authentication flow work?"
+    │
+    ▼
+Claude uses search_knowledge() tool
+    │
+    ▼
+Returns results from indexed code
 ```
 
 ---
 
-## 🎓 Success Criteria
+## 🛠️ Technical Stack
 
-### md-mcp
-- ✅ PyPI package installable in <1 minute
-- ✅ Search latency <500ms for 10K chunks
-- ✅ Incremental index update <5s for 100 changed files
-- ✅ Works with Claude Desktop out-of-the-box
-- ✅ 80%+ test coverage
+### Core Dependencies
+| Package | Version | Purpose |
+|---------|---------|---------|
+| streamlit | ^1.30 | Web UI framework |
+| md-mcp | ^0.1.0 | Knowledge base + MCP server |
+| repomix | latest (npm) | Code → Markdown conversion |
 
-### docs-mcp
-- ✅ Convert 100+ page PDF in <30s
-- ✅ Index 1000-file repo in <2 minutes
-- ✅ GUI responsive (no freezing during processing)
-- ✅ One-click MCP server setup
-- ✅ Supports Windows/Mac/Linux
-
----
-
-## 🤔 Open Questions
-
-1. **Embedding model:** Default to local (sentence-transformers) or cloud (OpenAI)?
-2. **Vector DB:** FAISS (simple, local) vs ChromaDB (feature-rich) vs Qdrant (scalable)?
-3. **GUI framework:** Streamlit (web) vs PyQt (native)?
-4. **Pandoc dependency:** Include for universal conversion or keep lean?
-5. **Cloud sync:** Should md-mcp support remote storage (S3, GCS)?
-6. **Multi-language:** Should we support non-English from day 1?
+### Optional Dependencies
+| Package | Purpose |
+|---------|---------|
+| watchdog | File watcher for auto-regen |
+| pyperclip | Clipboard support for config |
 
 ---
 
-## 📝 Next Steps
+## 📋 Feature Checklist
 
-1. **Review this spec** with Master Yang
-2. **Make architectural decisions** (embedding model, vector DB, GUI framework)
-3. **Create GitHub repos** (md-mcp, docs-mcp)
-4. **Set up development environments**
-5. **Start Phase 1: md-mcp core**
+### MVP (Week 1: Feb 27 - Mar 5)
+- [ ] **Streamlit UI Setup**
+  - [ ] Folder selection widget
+  - [ ] KB name input field
+  - [ ] Generate button
+  - [ ] Status display area
+  
+- [ ] **Repomix Integration**
+  - [ ] Subprocess wrapper for repomix
+  - [ ] Progress bar per folder
+  - [ ] Error handling for repomix failures
+  - [ ] Validate repomix is installed (npm global)
+  
+- [ ] **md-mcp Integration**
+  - [ ] Create KB from .md files
+  - [ ] Index with hybrid search
+  - [ ] Store in ~/.code-folders-mcp/
+  - [ ] Handle KB already exists (overwrite prompt)
+  
+- [ ] **MCP Server Controls**
+  - [ ] Start server button
+  - [ ] Stop server button
+  - [ ] Display server status
+  - [ ] Generate config snippet
+  
+- [ ] **Configuration Export**
+  - [ ] Generate Claude Desktop config JSON
+  - [ ] Copy to clipboard button
+  - [ ] Display file path instructions
+  
+- [ ] **Testing**
+  - [ ] Test with sample code folder
+  - [ ] Verify Claude Desktop connection
+  - [ ] Test search quality
+
+### Nice-to-Have (Week 2: Mar 6-12)
+- [ ] **Search Testing UI**
+  - [ ] In-app search widget
+  - [ ] Display results with scores
+  - [ ] Source file links
+  
+- [ ] **Watch Mode**
+  - [ ] Auto-detect file changes in folders
+  - [ ] Auto-regenerate .md files
+  - [ ] Auto-reindex KB
+  
+- [ ] **Multiple KBs**
+  - [ ] List existing KBs
+  - [ ] Switch between KBs
+  - [ ] Delete KB
+  
+- [ ] **Statistics Dashboard**
+  - [ ] KB size, chunk count
+  - [ ] Files indexed
+  - [ ] Last updated timestamp
+  
+- [ ] **Repomix Config**
+  - [ ] Customize repomix options
+  - [ ] Exclude patterns
+  - [ ] Output format options
+
+### Future (Post-MVP)
+- [ ] **Document Support**
+  - [ ] PDF → Markdown
+  - [ ] DOCX → Markdown
+  - [ ] Web scraping
+  
+- [ ] **Advanced Features**
+  - [ ] Real-time collaboration
+  - [ ] Cloud deployment (Streamlit Cloud)
+  - [ ] Multi-user support
+  - [ ] API endpoints
 
 ---
 
-**Maintainer:** Master Yang  
-**Repository:** (TBD)  
-**Contact:** (TBD)
+## 🧪 Testing Strategy
+
+### Manual Testing
+1. **Folder Selection**
+   - Select single folder ✓
+   - Select multiple folders ✓
+   - Remove folder ✓
+   - Invalid path handling ✓
+
+2. **Repomix Execution**
+   - Small folder (< 100 files) ✓
+   - Large folder (> 1000 files) ✓
+   - Repomix not installed ✓
+   - Repomix fails (invalid path) ✓
+
+3. **KB Creation**
+   - First KB creation ✓
+   - KB already exists ✓
+   - Empty folder list ✓
+   - Empty KB name ✓
+
+4. **MCP Integration**
+   - Start server ✓
+   - Stop server ✓
+   - Server already running ✓
+   - Claude Desktop connection ✓
+
+5. **Search Quality**
+   - Code-specific queries ✓
+   - Function/class name search ✓
+   - Conceptual queries ✓
+   - Edge cases (no results) ✓
+
+### Automated Testing
+- Unit tests for repomix wrapper
+- Integration tests for md-mcp KB creation
+- End-to-end test with sample folder
+
+---
+
+## 📦 Distribution Options
+
+### Option A: pip install (Recommended)
+```bash
+pip install code-folders-mcp
+code-folders-mcp  # Launches Streamlit app
+```
+
+**Pros:**
+- Easy installation
+- Standard Python workflow
+- Works on all platforms
+
+**Cons:**
+- Requires Python environment
+- Users need to install repomix separately
+
+### Option B: Standalone Executable
+```bash
+# PyInstaller bundle
+code-folders-mcp.exe  # Windows
+./code-folders-mcp    # macOS/Linux
+```
+
+**Pros:**
+- No Python required
+- One-click launch
+
+**Cons:**
+- Large file size
+- Complex bundling (Streamlit + md-mcp)
+
+### Option C: Streamlit Cloud Deploy
+```
+https://code-folders-mcp.streamlit.app
+```
+
+**Pros:**
+- Zero installation
+- Web-based
+
+**Cons:**
+- Requires upload of code (privacy concern)
+- Network dependency
+- Not suitable for private codebases
+
+**Decision:** Start with **Option A** (pip install), explore others later.
+
+---
+
+## 🔒 Security & Privacy
+
+### Data Handling
+- ✅ **Local-first:** All processing on user's machine
+- ✅ **No upload:** Code never leaves local filesystem
+- ✅ **No telemetry:** Zero data collection
+- ✅ **User control:** User owns KB files
+
+### Potential Risks
+- ⚠️ Repomix might include sensitive files (mitigate: .gitignore respect)
+- ⚠️ KB stored in plaintext (mitigate: document best practices)
+
+---
+
+## 📚 Documentation Plan
+
+### User Documentation
+1. **README.md** - Quick start guide
+2. **Installation.md** - Detailed setup
+3. **Usage.md** - Step-by-step walkthrough
+4. **Troubleshooting.md** - Common issues
+
+### Developer Documentation
+1. **ARCHITECTURE.md** - System design
+2. **DECISIONS.md** - Design choices
+3. **CONTRIBUTING.md** - How to contribute
+4. **API.md** - md-mcp integration details
+
+---
+
+## 🎯 Success Criteria
+
+**MVP is successful if:**
+- ✅ User can select 1+ code folders
+- ✅ Repomix generates .md files
+- ✅ md-mcp creates searchable KB
+- ✅ MCP server starts successfully
+- ✅ Claude Desktop can search the codebase
+- ✅ Search results are relevant (>70% accuracy on test queries)
+
+**Post-MVP goals:**
+- 📈 50+ users testing the tool
+- 📈 5+ GitHub stars on doc-mcp repo
+- 📈 Positive feedback on search quality
+- 📈 Feature requests for PDF/DOCX support
+
+---
+
+## 📞 Contact
+
+**Project Owner:** Master Yang  
+**AI Assistant:** Helpful Bob 🤖  
+**Repository:** https://github.com/ly2xxx/doc-mcp  
+**PyPI (md-mcp):** https://pypi.org/project/md-mcp/
+
+---
+
+**Let's build this MVP!** 🚀
+
+Clear scope, proven tech, achievable timeline. Time to code.

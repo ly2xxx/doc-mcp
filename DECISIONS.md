@@ -1,292 +1,345 @@
-# Architectural Decisions
+# Architecture Decisions
 
-**Purpose:** Track key technical decisions with rationale
-
----
-
-## 🎯 Critical Decisions Needed
-
-### 1. Vector Database Choice
-
-| Option | Pros | Cons | Recommendation |
-|--------|------|------|----------------|
-| **FAISS** | • Fastest search<br>• Minimal dependencies<br>• Battle-tested by Facebook<br>• Works offline | • No built-in persistence (need manual save/load)<br>• Less feature-rich | ✅ **Phase 1 MVP** |
-| **ChromaDB** | • Easy API<br>• Built-in persistence<br>• Metadata filtering<br>• Cloud-ready | • Heavier dependency<br>• Slower than FAISS | ⭐ **Phase 2 upgrade** |
-| **Qdrant** | • Production-grade<br>• Horizontal scaling<br>• Advanced filtering | • Overkill for local use<br>• Requires server | 🔮 **Future (if cloud needed)** |
-
-**Decision:** Start with FAISS, design abstraction layer for easy swap to ChromaDB later
+**Last Updated:** 2026-02-27  
+**Status:** Most decisions settled after pivot to code-folders-first
 
 ---
 
-### 2. Embedding Model Strategy
+## ✅ Decisions Made (Settled)
 
-| Option | Pros | Cons | Recommendation |
-|--------|------|------|----------------|
-| **Local (sentence-transformers)** | • Free<br>• Fast<br>• Private<br>• Works offline | • Slightly lower quality<br>• 300MB model download | ✅ **Default** |
-| **OpenAI (text-embedding-ada-002)** | • Best quality<br>• No local storage | • Costs $0.0001/1K tokens<br>• Requires API key<br>• Privacy concern | 🔧 **Optional upgrade** |
-| **Cohere** | • Good quality<br>• Free tier available | • Still requires API<br>• Less popular | ⚠️ **Consider for v2** |
+### 1. Scope: Code Folders First (MVP)
 
-**Decision:** Default to `all-MiniLM-L6-v2` (local), allow user to configure OpenAI as override
+**Decision:** Build code-folders-MCP first, defer PDF/DOCX/web scraping.
 
-**Config example:**
-```yaml
-embedding:
-  provider: local  # or openai, cohere
-  model: sentence-transformers/all-MiniLM-L6-v2
-  # If provider=openai:
-  # model: text-embedding-ada-002
-  # api_key: ${OPENAI_API_KEY}
-```
+**Rationale:**
+- ✅ md-mcp is already live on PyPI - we have the core
+- ✅ Repomix is proven for code → markdown
+- ✅ Code search is the #1 developer use case
+- ✅ Smaller scope = ship faster
+- ✅ Can add document support later (proven architecture)
+
+**Status:** ✅ **SETTLED** - Code folders only for v0.1
 
 ---
 
-### 3. GUI Framework
+### 2. GUI Framework: Streamlit
 
-| Option | Pros | Cons | Use Case |
-|--------|------|------|----------|
-| **Streamlit** | • Fast dev (days not weeks)<br>• Web-ready (deploy anywhere)<br>• Good for demos<br>• Built-in widgets | • Web-only (not native app)<br>• Slower than native<br>• Requires Python runtime | ✅ **MVP & web deployment** |
-| **Gradio** | • Similar to Streamlit<br>• Hugging Face integration | • Less flexible<br>• Smaller community | ⚠️ Alternative to Streamlit |
-| **PyQt** | • Native desktop<br>• Best performance<br>• Professional look | • Steep learning curve<br>• 2-3x dev time<br>• Platform-specific quirks | 🔮 **v2 if native app needed** |
+**Decision:** Use Streamlit for MVP UI.
 
-**Decision:** Streamlit for MVP, evaluate PyQt for v2 if users request native app
+**Rationale:**
+| Pro | Con |
+|-----|-----|
+| ✅ Fast prototyping (< 100 lines for full UI) | ⚠️ Web-based (not native) |
+| ✅ Python-native (no JS/HTML/CSS) | ⚠️ Limited offline support |
+| ✅ Built-in widgets (file picker, buttons, etc.) | ⚠️ Not as polished as native apps |
+| ✅ Easy deployment (Streamlit Cloud option) | |
+| ✅ Good for data/ML tools | |
 
-**Hybrid approach:**
-```python
-# docs-mcp supports both
-$ docs-mcp --gui          # Launch Streamlit
-$ docs-mcp build --source ./docs  # CLI mode
-```
+**Alternatives considered:**
+- PyQt: More polished, but steeper learning curve
+- Gradio: Good for ML demos, but less flexible for general apps
+- CLI-only: Too basic for user-friendly experience
 
----
-
-### 4. Document Conversion Strategy
-
-| Format | Library | Backup Option | Notes |
-|--------|---------|---------------|-------|
-| **PDF** | `pypdf` | `pdfplumber` | pypdf is pure Python (easier install) |
-| **DOCX** | `python-docx` | `mammoth` | python-docx is official MS library |
-| **XLSX** | `openpyxl` | `pandas` | openpyxl for structure, pandas for data |
-| **Web** | `trafilatura` | `beautifulsoup4` | trafilatura is best for article extraction |
-| **Code** | `repomix` (subprocess) | Custom parser | Repomix already proven |
-| **Universal** | `pandoc` (optional) | - | 50MB dependency, but handles 40+ formats |
-
-**Decision:** 
-- Core converters (PDF, DOCX, Web, Repomix) built-in
-- Pandoc as optional dependency for power users: `pip install docs-mcp[pandoc]`
+**Status:** ✅ **SETTLED** - Streamlit for MVP, consider PyQt for v2.0
 
 ---
 
-### 5. MCP Server Deployment
+### 3. Code → Markdown: Repomix
 
-| Mode | When to Use | How It Works |
-|------|-------------|--------------|
-| **Stdio** | Claude Desktop, Cline | MCP server reads stdin, writes stdout |
-| **HTTP** | Remote access, web clients | MCP over HTTP (port 8080) |
-| **Both** | Maximum compatibility | Detect mode from environment |
+**Decision:** Use Repomix (subprocess) for code consolidation.
 
-**Decision:** Support both, detect automatically:
-```python
-# In md-mcp
-if sys.stdin.isatty():
-    # Running interactively, use HTTP
-    server.run_http(port=8080)
-else:
-    # Piped input, use stdio
-    server.run_stdio()
-```
+**Rationale:**
+- ✅ Already proven tool (Master Yang uses it)
+- ✅ Handles all file types (Python, JS, Rust, etc.)
+- ✅ Respects `.gitignore`
+- ✅ Generates clean markdown with file structure
+- ✅ No reinventing the wheel
 
-**Claude Desktop config:**
-```json
-{
-  "mcpServers": {
-    "my-docs": {
-      "command": "python",
-      "args": ["-m", "md_mcp.server", "--kb", "my-project"]
-    }
-  }
-}
-```
+**Alternatives considered:**
+- Tree + cat: Too manual, no formatting
+- Custom parser: Unnecessary complexity
+- Pandoc: Overkill for code files
+
+**Status:** ✅ **SETTLED** - Repomix is the right tool
 
 ---
 
-### 6. Chunking Strategy Default
+### 4. Knowledge Base: md-mcp (PyPI)
 
-| Strategy | Best For | Performance | Accuracy |
-|----------|----------|-------------|----------|
-| **Header-based** | Technical docs with clear structure | Fast | Good |
-| **Paragraph-based** | Prose, articles | Fast | Medium |
-| **Semantic** | Mixed content | Slower | Best |
-| **Hybrid** | Maximum coverage | Slowest | Best |
+**Decision:** Use md-mcp library as the core KB engine.
 
-**Decision:** Default to semantic chunking, allow override:
-```yaml
-chunking:
-  strategy: semantic  # or header, paragraph, hybrid
-  max_chunk_size: 512  # tokens
-  overlap: 50  # tokens
-```
+**Rationale:**
+- ✅ Already published on PyPI
+- ✅ Proven chunking + indexing
+- ✅ Built-in MCP server
+- ✅ Hybrid search (keyword + semantic)
+- ✅ Maintained by same team
+
+**Status:** ✅ **SETTLED** - md-mcp is the foundation
 
 ---
 
-### 7. Project Naming
+### 5. Vector Database: FAISS (md-mcp default)
 
-| Aspect | Current | Alternative | Decision |
-|--------|---------|-------------|----------|
-| **Library** | md-mcp | markdown-knowledge, mdkb | **md-mcp** ✅ (clear, concise) |
-| **App** | docs-mcp | kb-builder, doc-indexer | **docs-mcp** ✅ (consistent naming) |
-| **PyPI** | md-mcp, docs-mcp | Same | ✅ Match repo names |
+**Decision:** Use md-mcp's default (FAISS).
 
-**Rationale:** 
-- "mcp" signals MCP protocol support
-- "md" = markdown (core format)
-- "docs" = multi-format documents (broader scope)
+**Rationale:**
+- ✅ md-mcp already uses FAISS
+- ✅ Fast, local, no external dependencies
+- ✅ Proven for <100K chunks (our use case)
+- ✅ Simple API
+- ✅ No need to change md-mcp internals
 
----
+**Alternatives:**
+- ChromaDB: Feature-rich, but heavier
+- Qdrant: Production-grade, but overkill for local use
+- Pinecone/Weaviate: Cloud-only, violates local-first principle
 
-### 8. Testing Strategy
-
-| Layer | Framework | Coverage Target | Priority |
-|-------|-----------|-----------------|----------|
-| **Unit tests** | pytest | 80%+ | High |
-| **Integration tests** | pytest + fixtures | Key workflows | High |
-| **MCP protocol tests** | MCP test harness | All tools | High |
-| **GUI tests** | Streamlit test framework | Basic flows | Medium |
-| **Performance tests** | pytest-benchmark | Latency, throughput | Medium |
-
-**Decision:** Unit + integration mandatory before v1.0, GUI tests nice-to-have
+**Status:** ✅ **SETTLED** - Stick with FAISS
 
 ---
 
-### 9. Versioning & Release
+### 6. Embeddings: Local (sentence-transformers)
 
-| Aspect | Strategy |
-|--------|----------|
-| **Version scheme** | Semantic: 0.1.0 → 1.0.0 |
-| **md-mcp releases** | Independent of docs-mcp |
-| **Breaking changes** | Major version bump (1.x → 2.x) |
-| **Deprecation** | 1 minor version warning before removal |
+**Decision:** Use local embeddings via sentence-transformers.
 
-**Release checklist:**
-- [ ] All tests pass
-- [ ] Docs updated
-- [ ] CHANGELOG.md entry
-- [ ] PyPI upload
-- [ ] GitHub release + tag
-- [ ] Demo video updated
+**Rationale:**
+- ✅ md-mcp already uses `all-MiniLM-L6-v2`
+- ✅ No API costs
+- ✅ No network dependency
+- ✅ Privacy-preserving (code stays local)
+- ✅ Fast inference on CPU
 
----
+**Alternatives:**
+- OpenAI embeddings: Costs money, requires API key, not private
+- Cohere: Same issues as OpenAI
 
-### 10. License
-
-| Option | Pros | Cons | Decision |
-|--------|------|------|----------|
-| **MIT** | Most permissive, widely adopted | No patent grant | ✅ **Recommended** |
-| **Apache 2.0** | Patent grant, enterprise-friendly | Slightly more complex | Alternative |
-| **GPL** | Strong copyleft | Can't use in proprietary projects | ❌ Too restrictive |
-
-**Decision:** MIT for both projects (maximize adoption)
+**Status:** ✅ **SETTLED** - Local embeddings only for MVP
 
 ---
 
-## 📋 Configuration Recommendations
+### 7. Keyword Search: SQLite FTS5 (md-mcp default)
 
-### md-mcp default config (YAML)
-```yaml
-knowledge_base:
-  name: my-kb
-  source_path: ./docs
-  output_path: ./kb-data
+**Decision:** Use md-mcp's built-in FTS5 index.
 
-embedding:
-  provider: local
-  model: sentence-transformers/all-MiniLM-L6-v2
-  device: cpu  # or cuda
+**Rationale:**
+- ✅ SQLite is built into Python
+- ✅ FTS5 is fast and proven
+- ✅ Zero config
+- ✅ md-mcp already implements it
 
-chunking:
-  strategy: semantic
-  max_chunk_size: 512
-  overlap: 50
-  preserve_metadata: true
-
-indexing:
-  vector_db: faiss
-  keyword_index: sqlite_fts5
-  incremental: true
-
-search:
-  keyword_weight: 0.3
-  semantic_weight: 0.7
-  top_k: 5
-
-mcp_server:
-  mode: auto  # auto, stdio, http
-  port: 8080  # for HTTP mode
-```
-
-### docs-mcp default config (YAML)
-```yaml
-converters:
-  pdf:
-    enabled: true
-    extract_images: false
-  docx:
-    enabled: true
-    preserve_formatting: true
-  xlsx:
-    enabled: true
-    convert_tables: true
-  web:
-    enabled: true
-    timeout: 30
-  repomix:
-    enabled: true
-    include_patterns: ["*.py", "*.js", "*.md"]
-    exclude_patterns: ["node_modules", ".git"]
-
-ui:
-  framework: streamlit
-  theme: dark
-  max_upload_size_mb: 100
-
-batch:
-  max_concurrent: 4
-  progress_updates: true
-```
+**Status:** ✅ **SETTLED** - FTS5 is perfect
 
 ---
 
-## 🚦 Decision Status
+### 8. MCP Transport: stdio
 
-| Decision | Status | Owner | Date |
-|----------|--------|-------|------|
-| Vector DB (FAISS) | ⏳ Pending review | Master Yang | 2026-02-18 |
-| Embedding (local default) | ⏳ Pending review | Master Yang | 2026-02-18 |
-| GUI (Streamlit) | ⏳ Pending review | Master Yang | 2026-02-18 |
-| Converters (core + optional) | ⏳ Pending review | Master Yang | 2026-02-18 |
-| MCP server (stdio + HTTP) | ⏳ Pending review | Master Yang | 2026-02-18 |
-| Chunking (semantic default) | ⏳ Pending review | Master Yang | 2026-02-18 |
-| Naming (md-mcp, docs-mcp) | ⏳ Pending review | Master Yang | 2026-02-18 |
-| License (MIT) | ⏳ Pending review | Master Yang | 2026-02-18 |
+**Decision:** Use stdio transport for MCP (not HTTP).
+
+**Rationale:**
+- ✅ Claude Desktop expects stdio
+- ✅ Simpler than HTTP (no port management)
+- ✅ md-mcp supports stdio natively
+
+**Status:** ✅ **SETTLED** - stdio for Claude Desktop integration
 
 ---
 
-## 🎬 Next Actions
+### 9. Storage Location: ~/.code-folders-mcp/
 
-**For Master Yang to review:**
-1. Approve/modify vector DB choice
-2. Approve/modify embedding strategy
-3. Approve/modify GUI framework
-4. Approve/modify converter scope
-5. Green-light project naming
-6. Confirm license
+**Decision:** Store KBs in `~/.code-folders-mcp/{kb-name}/`.
 
-**Once decided:**
-1. Create GitHub repos (md-mcp, docs-mcp)
-2. Set up development environment
-3. Initialize projects with Poetry
-4. Write first unit tests (TDD approach)
-5. Start Phase 1 implementation
+**Rationale:**
+- ✅ Standard user-local directory
+- ✅ Portable across sessions
+- ✅ Easy to backup
+- ✅ Hidden by default (starts with `.`)
+
+**Alternatives:**
+- Project-local (.code-mcp/ in each project): Duplicates data
+- /tmp/: Not persistent
+- Custom user-specified: More complex UX
+
+**Status:** ✅ **SETTLED** - `~/.code-folders-mcp/`
 
 ---
 
-**Status:** Awaiting Master Yang's architectural decisions ⏳
+### 10. Distribution: pip install
+
+**Decision:** Distribute via PyPI as `code-folders-mcp`.
+
+**Rationale:**
+- ✅ Standard Python packaging
+- ✅ Easy installation (`pip install code-folders-mcp`)
+- ✅ Dependency management via Poetry
+- ✅ Can add standalone binaries later
+
+**Status:** ✅ **SETTLED** - PyPI first, binaries later
+
+---
+
+## ⏳ Open Questions (To Decide)
+
+### 1. Watch Mode (Auto-Regenerate)
+
+**Question:** Should we auto-detect code changes and regenerate .md files?
+
+**Options:**
+| Option | Pros | Cons |
+|--------|------|------|
+| **A: No watch mode (MVP)** | ✅ Simpler, fewer deps | ⚠️ Manual regeneration |
+| **B: Optional watch mode** | ✅ Better UX, fresher index | ⚠️ Complexity, resource usage |
+| **C: Watch mode only** | ✅ Always fresh | ⚠️ Can't disable for large repos |
+
+**Recommendation:** **Option A** for MVP, add **Option B** in v0.2.
+
+**Decision:** ⏳ **PENDING** (lean towards Option A for MVP)
+
+---
+
+### 2. Multi-KB Management
+
+**Question:** Should users manage multiple KBs in one UI session?
+
+**Options:**
+| Option | Pros | Cons |
+|--------|------|------|
+| **A: Single KB per session** | ✅ Simpler UI | ⚠️ Need to restart for other KBs |
+| **B: KB switcher in UI** | ✅ Better UX | ⚠️ More state management |
+| **C: Multiple tabs** | ✅ Parallel work | ⚠️ UI complexity |
+
+**Recommendation:** **Option A** for MVP, add **Option B** if users request it.
+
+**Decision:** ⏳ **PENDING** (lean towards Option A for MVP)
+
+---
+
+### 3. Repomix Configuration Exposure
+
+**Question:** Should we let users configure repomix options (exclude patterns, etc.)?
+
+**Options:**
+| Option | Pros | Cons |
+|--------|------|------|
+| **A: Use repomix defaults** | ✅ Zero config | ⚠️ Less control |
+| **B: Basic options (exclude)** | ✅ Useful for sensitive files | ⚠️ More UI complexity |
+| **C: Full repomix config** | ✅ Maximum flexibility | ⚠️ Overwhelming for users |
+
+**Recommendation:** **Option A** for MVP, add **Option B** if needed.
+
+**Note:** Repomix already respects `.gitignore`, which covers 90% of use cases.
+
+**Decision:** ⏳ **PENDING** (lean towards Option A for MVP)
+
+---
+
+### 4. Search Testing UI
+
+**Question:** Should we include in-app search testing?
+
+**Options:**
+| Option | Pros | Cons |
+|--------|------|------|
+| **A: No search UI** | ✅ Simpler scope | ⚠️ Can't test before Claude |
+| **B: Basic search widget** | ✅ Validate search quality | ⚠️ Extra development |
+| **C: Full search dashboard** | ✅ Rich testing | ⚠️ Scope creep |
+
+**Recommendation:** **Option B** - A simple search box is valuable for debugging.
+
+**Decision:** ⏳ **PENDING** (lean towards Option B - it's easy to add)
+
+---
+
+### 5. Deployment Target
+
+**Question:** Where should users run this?
+
+**Options:**
+| Option | Target | Pros | Cons |
+|--------|--------|------|------|
+| **A: Local only (pip)** | Developer machines | ✅ Privacy, speed | ⚠️ Requires Python setup |
+| **B: Streamlit Cloud** | Web browser | ✅ Zero install | ⚠️ Upload code (privacy!) |
+| **C: Docker** | Anywhere | ✅ Portable | ⚠️ Heavier setup |
+| **D: Standalone binary** | Non-developers | ✅ One-click | ⚠️ Large file size |
+
+**Recommendation:** Start with **Option A**, add others later.
+
+**Decision:** ✅ **SETTLED** - Local pip install for MVP
+
+---
+
+### 6. Project Naming
+
+**Question:** Confirm package name: `code-folders-mcp`?
+
+**Alternatives:**
+- `codebase-mcp`
+- `repo-mcp`
+- `source-mcp`
+- `dev-mcp`
+
+**Recommendation:** `code-folders-mcp` is descriptive and clear.
+
+**Decision:** ⏳ **PENDING** - Need Master Yang's final approval
+
+---
+
+### 7. Configuration Persistence
+
+**Question:** Should we save folder selections for reuse?
+
+**Options:**
+| Option | Pros | Cons |
+|--------|------|------|
+| **A: No persistence** | ✅ Stateless, simple | ⚠️ Re-enter folders each time |
+| **B: Save to config file** | ✅ Reusable "profiles" | ⚠️ More code |
+| **C: Browser session only** | ✅ Temporary persistence | ⚠️ Lost on refresh |
+
+**Recommendation:** **Option A** for MVP, add **Option B** if requested.
+
+**Decision:** ⏳ **PENDING** (lean towards Option A for MVP)
+
+---
+
+## 📊 Decision Summary
+
+| Decision | Status | Choice |
+|----------|--------|--------|
+| 1. Scope | ✅ Settled | Code folders only (MVP) |
+| 2. GUI | ✅ Settled | Streamlit |
+| 3. Code→MD | ✅ Settled | Repomix |
+| 4. KB Engine | ✅ Settled | md-mcp |
+| 5. Vector DB | ✅ Settled | FAISS |
+| 6. Embeddings | ✅ Settled | Local (sentence-transformers) |
+| 7. Keyword Search | ✅ Settled | SQLite FTS5 |
+| 8. MCP Transport | ✅ Settled | stdio |
+| 9. Storage | ✅ Settled | ~/.code-folders-mcp/ |
+| 10. Distribution | ✅ Settled | pip install |
+| 11. Watch Mode | ⏳ Pending | Lean: No (MVP) |
+| 12. Multi-KB | ⏳ Pending | Lean: No (MVP) |
+| 13. Repomix Config | ⏳ Pending | Lean: Defaults only (MVP) |
+| 14. Search UI | ⏳ Pending | Lean: Yes (easy to add) |
+| 15. Package Name | ⏳ Pending | Proposed: code-folders-mcp |
+| 16. Config Persistence | ⏳ Pending | Lean: No (MVP) |
+
+**Progress:** 10/16 settled (62%)
+
+**MVP-blocking decisions:** All settled! ✅
+
+**Nice-to-have decisions:** Can be deferred to post-MVP.
+
+---
+
+## 🎯 Next Steps
+
+1. ✅ Finalize package name with Master Yang
+2. ✅ Confirm MVP scope excludes watch mode, multi-KB, config persistence
+3. ⏳ Build Streamlit UI (folder selector + repomix runner)
+4. ⏳ Integrate md-mcp KB creation
+5. ⏳ Add simple search testing UI
+6. ⏳ Test end-to-end with Claude Desktop
+7. ⏳ Ship v0.1.0 to PyPI
+
+---
+
+**Decisions are mostly settled!** Ready to start coding. 🚀
