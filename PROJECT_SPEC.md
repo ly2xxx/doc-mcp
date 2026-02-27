@@ -272,16 +272,16 @@ Returns results from indexed code
   - [x] Store in ~/.code-folders-mcp/
   - [x] Handle KB already exists (overwrite prompt)
   
-- [ ] **MCP Server Controls**
-  - [ ] Start server button
-  - [ ] Stop server button
-  - [ ] Display server status
-  - [ ] Generate config snippet
+- [x] **MCP Server Controls**
+  - [x] Start server button (command to run separately)
+  - [x] Stop server button (N/A - manual stop)
+  - [x] Display server status (command-based approach)
+  - [x] Generate config snippet
   
-- [ ] **Configuration Export**
-  - [ ] Generate Claude Desktop config JSON
-  - [ ] Copy to clipboard button
-  - [ ] Display file path instructions
+- [x] **Configuration Export**
+  - [x] Generate Claude Desktop config JSON
+  - [x] Copy to clipboard button
+  - [x] Display file path instructions
   
 - [ ] **Testing**
   - [ ] Test with sample code folder

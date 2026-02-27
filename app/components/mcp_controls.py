@@ -1,10 +1,22 @@
 """
 MCP Server Controls Component
 
-Start/stop MCP server and generate Claude Desktop config.
+Generate MCP server commands and Claude Desktop config.
 """
 
 import streamlit as st
+from pathlib import Path
+import sys
+
+# Add utils to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.mcp_config import (
+    get_mcp_server_command,
+    get_claude_desktop_config_json,
+    get_claude_desktop_config_path,
+    get_setup_instructions
+)
 
 
 def render_mcp_controls():
@@ -15,77 +27,53 @@ def render_mcp_controls():
         st.info("🔒 Generate a knowledge base first to enable MCP server controls")
         return
     
-    st.markdown("**MCP Server Status:**")
+    if not st.session_state.kb_path or not st.session_state.kb_name:
+        st.error("❌ KB path or name not set")
+        return
     
-    # Server status
-    if st.session_state.mcp_server_running:
-        st.success("🟢 Server running")
-    else:
-        st.warning("⚪ Server stopped")
+    kb_path = Path(st.session_state.kb_path)
+    kb_name = st.session_state.kb_name
     
-    # Start/Stop buttons
-    col1, col2 = st.columns(2)
+    # Get MCP server command
+    server_command = get_mcp_server_command(kb_name, kb_path)
+    config_json = get_claude_desktop_config_json(kb_name, kb_path)
+    config_path = get_claude_desktop_config_path()
     
-    with col1:
-        if st.button(
-            "▶️ Start Server",
-            disabled=st.session_state.mcp_server_running,
-            use_container_width=True
-        ):
-            # Placeholder - will implement in MCP Server Controls task
-            st.info("🔧 Server start logic will be implemented in MCP Server Controls task")
-            # st.session_state.mcp_server_running = True
-            # st.rerun()
+    st.markdown("**🚀 MCP Server Command**")
+    st.info("The MCP server must run in a separate terminal (keep it open)")
     
-    with col2:
-        if st.button(
-            "⏸️ Stop Server",
-            disabled=not st.session_state.mcp_server_running,
-            use_container_width=True
-        ):
-            # Placeholder - will implement in MCP Server Controls task
-            st.info("🔧 Server stop logic will be implemented in MCP Server Controls task")
-            # st.session_state.mcp_server_running = False
-            # st.rerun()
+    st.code(server_command, language="bash")
+    
+    # Copy command button
+    if st.button("📋 Copy Command", key="copy_command", use_container_width=True):
+        try:
+            import pyperclip
+            pyperclip.copy(server_command)
+            st.success("✅ Command copied to clipboard!")
+        except ImportError:
+            st.warning("⚠️ Install pyperclip for clipboard support: pip install pyperclip")
+            st.info(f"Manual copy: {server_command}")
     
     st.divider()
     
-    # Configuration snippet (placeholder)
-    if st.session_state.kb_name:
-        st.markdown("**Claude Desktop Config:**")
-        
-        # This will be implemented in Configuration Export task
-        config_snippet = f"""{{
-  "mcpServers": {{
-    "{st.session_state.kb_name}": {{
-      "command": "python",
-      "args": [
-        "-m", "md_mcp.server",
-        "--kb={st.session_state.kb_name}"
-      ]
-    }}
-  }}
-}}"""
-        
-        st.code(config_snippet, language="json")
-        
-        # Copy button placeholder
-        if st.button("📋 Copy to Clipboard", disabled=True):
-            st.info("🔧 Clipboard functionality will be implemented in Configuration Export task")
-        
-        # Instructions placeholder
-        with st.expander("📖 Setup Instructions"):
-            st.markdown("""
-            **How to connect to Claude Desktop:**
-            
-            1. Copy the config snippet above
-            2. Open your Claude Desktop config file:
-               - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-               - **Windows:** `%APPDATA%\\Claude\\claude_desktop_config.json`
-               - **Linux:** `~/.config/Claude/claude_desktop_config.json`
-            3. Paste the config into the `mcpServers` section
-            4. Restart Claude Desktop
-            5. Ask Claude to search your code!
-            
-            *(Detailed instructions will be added in Configuration Export task)*
-            """)
+    # Configuration snippet
+    st.markdown("**⚙️ Claude Desktop Config**")
+    st.caption(f"Add this to: `{config_path}`")
+    
+    st.code(config_json, language="json")
+    
+    # Copy config button
+    if st.button("📋 Copy Config", key="copy_config", use_container_width=True):
+        try:
+            import pyperclip
+            pyperclip.copy(config_json)
+            st.success("✅ Config copied to clipboard!")
+        except ImportError:
+            st.warning("⚠️ Install pyperclip for clipboard support: pip install pyperclip")
+    
+    st.divider()
+    
+    # Detailed instructions
+    with st.expander("📖 Complete Setup Instructions", expanded=False):
+        instructions = get_setup_instructions(kb_name, kb_path)
+        st.markdown(instructions)
