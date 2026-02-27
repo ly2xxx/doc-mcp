@@ -19,6 +19,13 @@ from utils.repomix_runner import (
     RepomixTimeoutError,
     get_folder_stats
 )
+from utils.kb_manager import (
+    create_kb,
+    delete_kb,
+    kb_exists,
+    KBError,
+    KBAlreadyExistsError
+)
 
 
 def render_kb_generator():
@@ -137,11 +144,65 @@ def render_kb_generator():
         progress_bar.empty()
         
         if generated_files:
-            st.session_state.kb_path = workspace.parent
-            st.session_state.kb_status = "ready"
-            st.success(f"✅ Generated {len(generated_files)}/{total_folders} markdown files!")
-            st.info("🔧 Next: Implement md-mcp KB indexing")
-            st.rerun()
+            # Create KB from generated files
+            progress_text.text("Creating knowledge base...")
+            
+            try:
+                # Check if KB already exists
+                kb_workspace = Path.home() / ".code-folders-mcp"
+                
+                if kb_exists(st.session_state.kb_name, kb_workspace):
+                    # Ask user to overwrite
+                    overwrite = st.warning(
+                        f"⚠️ Knowledge base '{st.session_state.kb_name}' already exists. "
+                        "Delete and recreate?"
+                    )
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("🗑️ Delete & Recreate", type="primary"):
+                            delete_kb(st.session_state.kb_name, kb_workspace)
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Cancel"):
+                            st.session_state.kb_status = "idle"
+                            st.rerun()
+                    return
+                
+                # Create KB
+                kb_stats = create_kb(
+                    kb_name=st.session_state.kb_name,
+                    md_files=generated_files,
+                    workspace_dir=kb_workspace
+                )
+                
+                st.session_state.kb_path = Path(kb_stats["kb_path"])
+                st.session_state.kb_status = "ready"
+                st.session_state.generation_results.append(
+                    f"\n📊 KB Stats:"
+                )
+                st.session_state.generation_results.append(
+                    f"  - Files: {kb_stats['num_files']}"
+                )
+                st.session_state.generation_results.append(
+                    f"  - Total size: {kb_stats['total_size_mb']} MB"
+                )
+                st.session_state.generation_results.append(
+                    f"  - Location: {kb_stats['kb_path']}"
+                )
+                
+                progress_text.empty()
+                st.success(f"✅ Knowledge base '{st.session_state.kb_name}' created successfully!")
+                st.info("📁 Sources copied to: " + kb_stats['kb_path'])
+                st.rerun()
+                
+            except KBAlreadyExistsError as e:
+                st.error(f"❌ {str(e)}")
+                st.session_state.kb_status = "idle"
+                
+            except KBError as e:
+                st.error(f"❌ Failed to create KB: {str(e)}")
+                st.session_state.kb_status = "idle"
         else:
             st.error("❌ No files were generated successfully")
             st.session_state.kb_status = "idle"

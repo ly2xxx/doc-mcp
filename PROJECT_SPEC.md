@@ -266,11 +266,11 @@ Returns results from indexed code
   - [x] Error handling for repomix failures
   - [x] Validate repomix is installed (npm global)
   
-- [ ] **md-mcp Integration**
-  - [ ] Create KB from .md files
-  - [ ] Index with hybrid search
-  - [ ] Store in ~/.code-folders-mcp/
-  - [ ] Handle KB already exists (overwrite prompt)
+- [x] **md-mcp Integration**
+  - [x] Create KB from .md files
+  - [x] Index with hybrid search
+  - [x] Store in ~/.code-folders-mcp/
+  - [x] Handle KB already exists (overwrite prompt)
   
 - [ ] **MCP Server Controls**
   - [ ] Start server button
