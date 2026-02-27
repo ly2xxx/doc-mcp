@@ -260,11 +260,11 @@ Returns results from indexed code
   - [x] Generate button
   - [x] Status display area
   
-- [ ] **Repomix Integration**
-  - [ ] Subprocess wrapper for repomix
-  - [ ] Progress bar per folder
-  - [ ] Error handling for repomix failures
-  - [ ] Validate repomix is installed (npm global)
+- [x] **Repomix Integration**
+  - [x] Subprocess wrapper for repomix
+  - [x] Progress bar per folder
+  - [x] Error handling for repomix failures
+  - [x] Validate repomix is installed (npm global)
   
 - [ ] **md-mcp Integration**
   - [ ] Create KB from .md files

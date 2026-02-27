@@ -6,6 +6,19 @@ Handles KB name input and generation workflow.
 
 import streamlit as st
 from pathlib import Path
+import sys
+
+# Add utils to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.repomix_runner import (
+    run_repomix,
+    check_repomix_installed,
+    RepomixError,
+    RepomixNotFoundError,
+    RepomixTimeoutError,
+    get_folder_stats
+)
 
 
 def render_kb_generator():
@@ -48,15 +61,90 @@ def render_kb_generator():
         disabled=not can_generate,
         use_container_width=True
     ):
-        # Placeholder for actual generation logic
+        # Check repomix is installed
+        if not check_repomix_installed():
+            st.error("❌ Repomix not found!")
+            st.error("Install with: `npm install -g repomix`")
+            st.info("💡 After installation, refresh this page")
+            return
+        
+        # Start generation
         st.session_state.kb_status = "processing"
+        st.session_state.generation_results = []
         
-        # This will be implemented in the next task (Repomix Integration)
-        st.info("⏳ Generation logic will be implemented in the next task...")
-        st.info("🔧 Next: Implement Repomix integration to process folders")
+        # Create workspace directory
+        workspace = Path.home() / ".code-folders-mcp" / st.session_state.kb_name / "sources"
+        workspace.mkdir(parents=True, exist_ok=True)
         
-        # For now, reset status after showing message
-        st.session_state.kb_status = "idle"
+        # Process each folder
+        progress_text = st.empty()
+        progress_bar = st.progress(0)
+        
+        total_folders = len(st.session_state.selected_folders)
+        generated_files = []
+        
+        for i, folder in enumerate(st.session_state.selected_folders):
+            progress_text.text(f"Processing {i+1}/{total_folders}: {folder.name}")
+            
+            try:
+                # Get folder stats
+                stats = get_folder_stats(folder)
+                st.session_state.generation_results.append(
+                    f"📁 {folder.name}: {stats['num_files']} files, {stats['total_size_mb']} MB"
+                )
+                
+                # Run repomix
+                output_file = run_repomix(
+                    folder_path=folder,
+                    output_name=folder.name,
+                    workspace_dir=workspace
+                )
+                
+                # Get output file size
+                output_size_mb = output_file.stat().st_size / (1024 * 1024)
+                
+                st.session_state.generation_results.append(
+                    f"✅ Generated: {output_file.name} ({output_size_mb:.2f} MB)"
+                )
+                
+                generated_files.append(output_file)
+                
+            except RepomixNotFoundError as e:
+                st.error(f"❌ {str(e)}")
+                st.session_state.kb_status = "idle"
+                return
+                
+            except RepomixTimeoutError as e:
+                st.error(f"⏱️ Timeout: {folder.name}")
+                st.error(str(e))
+                st.session_state.generation_results.append(
+                    f"❌ {folder.name}: Timeout"
+                )
+                
+            except RepomixError as e:
+                st.error(f"❌ Failed: {folder.name}")
+                st.error(str(e))
+                st.session_state.generation_results.append(
+                    f"❌ {folder.name}: {str(e)}"
+                )
+            
+            # Update progress
+            progress = (i + 1) / total_folders
+            progress_bar.progress(progress)
+        
+        # Clear progress indicators
+        progress_text.empty()
+        progress_bar.empty()
+        
+        if generated_files:
+            st.session_state.kb_path = workspace.parent
+            st.session_state.kb_status = "ready"
+            st.success(f"✅ Generated {len(generated_files)}/{total_folders} markdown files!")
+            st.info("🔧 Next: Implement md-mcp KB indexing")
+            st.rerun()
+        else:
+            st.error("❌ No files were generated successfully")
+            st.session_state.kb_status = "idle"
     
     # Show requirements if can't generate
     if not can_generate and st.session_state.kb_status != "processing":
