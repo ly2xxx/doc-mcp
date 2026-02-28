@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Package
+*.egg
+
+# App specific
+*.md
+!README.md
+!ARCHITECTURE.md
+!DECISIONS.md
+!DECISION_CHECKLIST.md
+!PROJECT_SPEC.md
+!TESTING.md
+.repomix-output/
