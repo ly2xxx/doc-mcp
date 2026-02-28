@@ -14,36 +14,34 @@ def render_folder_selector():
     # Folder input field
     st.markdown("**Add folders containing your code:**")
     
-    col1, col2 = st.columns([4, 1])
-    
-    with col1:
-        folder_input = st.text_input(
-            "Folder path",
-            placeholder="C:\\code\\my-project or /home/user/projects/app",
-            label_visibility="collapsed",
-            key="folder_input"
-        )
-    
-    with col2:
-        add_button = st.button("➕ Add", type="primary", use_container_width=True)
-    
-    # Add folder logic
-    if add_button and folder_input:
-        folder_path = Path(folder_input.strip())
+    with st.form("add_folder_form", clear_on_submit=True):
+        col1, col2 = st.columns([4, 1])
         
-        # Validate folder exists
-        if not folder_path.exists():
-            st.error(f"❌ Folder not found: {folder_path}")
-        elif not folder_path.is_dir():
-            st.error(f"❌ Not a directory: {folder_path}")
-        elif str(folder_path) in [str(f) for f in st.session_state.selected_folders]:
-            st.warning(f"⚠️ Folder already added: {folder_path.name}")
-        else:
-            st.session_state.selected_folders.append(folder_path)
-            st.success(f"✅ Added: {folder_path.name}")
-            # Clear input
-            st.session_state.folder_input = ""
-            st.rerun()
+        with col1:
+            folder_input = st.text_input(
+                "Folder path",
+                placeholder="C:\\code\\my-project or /home/user/projects/app",
+                label_visibility="collapsed"
+            )
+        
+        with col2:
+            add_button = st.form_submit_button("➕ Add", type="primary", use_container_width=True)
+        
+        # Add folder logic
+        if add_button and folder_input:
+            folder_path = Path(folder_input.strip())
+            
+            # Validate folder exists
+            if not folder_path.exists():
+                st.error(f"❌ Folder not found: {folder_path}")
+            elif not folder_path.is_dir():
+                st.error(f"❌ Not a directory: {folder_path}")
+            elif str(folder_path) in [str(f) for f in st.session_state.selected_folders]:
+                st.warning(f"⚠️ Folder already added: {folder_path.name}")
+            else:
+                st.session_state.selected_folders.append(folder_path)
+                st.success(f"✅ Added: {folder_path.name}")
+                st.rerun()
     
     # Display selected folders
     st.markdown("**Selected folders:**")
