@@ -2,9 +2,14 @@
 
 This directory contains the core logic for `docs-mcp`, including a command-line interface (CLI) and a web user interface.
 
+## Prerequisites
+
+- **Python 3.10+**
+- **uv**: Required for running `repomix` and `md-mcp` via `uvx`. [Installation Guide](https://docs.astral.sh/uv/getting-started/installation/)
+
 ## Requirements
 
-Ensure you have the necessary dependencies installed before running the scripts. You can install them using the provided `requirements.txt` file:
+Ensure you have the necessary library dependencies installed before running the scripts:
 
 ```bash
 pip install -r requirements.txt
