@@ -226,6 +226,11 @@ def api_generate_kb():
                 logger.info(f"Folders: {state.selected_folders}")
                 
                 output_dir = get_config_dir() / "kbs" / kb_name
+                
+                # Clear existing files in the KB directory
+                import shutil
+                if output_dir.exists():
+                    shutil.rmtree(output_dir)
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
                 # Make sure all selected folders are strings

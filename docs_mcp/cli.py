@@ -37,6 +37,11 @@ def generate(folder, output, name):
     
     # Calculate output path
     out_dir = Path(output) if output else Path.home() / ".docs-mcp" / "kbs" / name
+    
+    # Clear existing files in the KB directory
+    import shutil
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     
     # Use UTF-8 environment for Windows
