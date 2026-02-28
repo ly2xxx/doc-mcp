@@ -104,7 +104,7 @@ def serve(kb_path, port):
     click.echo(f"Port: {port}")
     
     import subprocess
-    cmd = ["uvx", "md-mcp", kb_path]
+    cmd = ["uvx", "md-mcp", "--folder", kb_path]
     
     # Use UTF-8 environment for Windows
     import os

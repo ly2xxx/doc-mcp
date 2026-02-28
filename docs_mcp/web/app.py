@@ -317,7 +317,7 @@ def api_start_server():
         
         logger.info(f"Starting MCP server for KB: {state.kb_path}")
                 
-        cmd = ["uvx", "md-mcp", state.kb_path]
+        cmd = ["uvx", "md-mcp", "--folder", state.kb_path]
         
         # Use UTF-8 environment for Windows compatibility
         env = os.environ.copy()
