@@ -1,2 +1,4 @@
 Flask>=2.0.0
 click>=8.0.0
+repomix>=0.2.0
+md-mcp>=0.1.0

@@ -32,9 +32,26 @@ def generate(folder, output, name):
     
     click.echo(f"Generating knowledge base '{name}' from {len(folder)} folder(s)...")
     
-    # TODO: Integrate with md-mcp
-    # from md_mcp.generator import generate_kb
-    # generate_kb(folders=folder, output=output, name=name)
+    import subprocess
+    
+    # Calculate output path
+    out_dir = Path(output) if output else Path.home() / ".docs-mcp" / "kbs" / name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / "knowledge_base.md"
+    
+    cmd = ["uvx", "repomix", "--output", str(out_file)] + list(folder)
+    click.echo(f"Running command: {' '.join(cmd)}")
+    
+    # Use UTF-8 environment for Windows
+    import os
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    
+    try:
+        subprocess.run(cmd, check=True, env=env)
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Error generating KB: {e}")
+        sys.exit(1)
     
     click.echo("✅ Knowledge base generated successfully!")
     click.echo(f"Output: {output or 'default location'}")
@@ -77,9 +94,21 @@ def serve(kb_path, port):
     click.echo(f"Starting MCP server for: {kb_path}")
     click.echo(f"Port: {port}")
     
-    # TODO: Start actual MCP server
-    # from md_mcp.server import start_server
-    # start_server(kb_path=kb_path, port=port)
+    import subprocess
+    cmd = ["uvx", "md-mcp", kb_path]
+    
+    # Use UTF-8 environment for Windows
+    import os
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    
+    try:
+        subprocess.run(cmd, check=True, env=env)
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Error starting server: {e}")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        click.echo("\nServer stopped.")
     
     click.echo("✅ MCP server started")
     click.echo("\nAdd this to your Claude Desktop config:")

@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
+import typing
+
 # Application state
 class AppState:
     """Global application state"""
@@ -36,7 +38,7 @@ class AppState:
     kb_name = ""
     kb_path = None
     kb_status = "idle"  # idle | processing | ready
-    mcp_server_process = None
+    mcp_server_process: typing.Any = None
     mcp_server_running = False
     generation_results = []
     
@@ -220,33 +222,41 @@ def api_generate_kb():
         # Run generation in background
         def generate():
             try:
-                # Import md-mcp functionality here
-                # For now, we'll simulate the generation
-                import time
                 logger.info(f"Starting KB generation: {kb_name}")
                 logger.info(f"Folders: {state.selected_folders}")
                 
-                # TODO: Replace with actual md-mcp generation logic
-                # from md_mcp.generator import generate_kb
-                # result = generate_kb(state.selected_folders, kb_name)
-                
-                # Simulate processing
-                time.sleep(2)
-                
-                # Update state
                 output_dir = get_config_dir() / "kbs" / kb_name
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
+                output_file = output_dir / "knowledge_base.md"
+                
+                # Make sure all selected folders are strings
+                folder_strs = [str(f) for f in state.selected_folders]
+                cmd = ["uvx", "repomix", "--output", str(output_file)] + folder_strs
+                logger.info(f"Running command: {' '.join(cmd)}")
+                
+                # Use UTF-8 environment for Windows compatibility with emojis
+                env = os.environ.copy()
+                env["PYTHONUTF8"] = "1"
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=env)
+                logger.info(f"repomix output: {result.stdout}")
+                
+                # Update state
                 state.kb_path = str(output_dir)
                 state.kb_status = "ready"
                 state.generation_results = [
-                    {'folder': f, 'status': 'processed', 'files': 42}
+                    {'folder': f, 'status': 'processed', 'files': -1} # repomix doesn't easily expose this
                     for f in state.selected_folders
                 ]
                 save_state()
                 
                 logger.info(f"KB generation completed: {kb_name}")
                 
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Error generating KB: {e.stderr}")
+                state.kb_status = "idle"
+                save_state()
             except Exception as e:
                 logger.error(f"Error generating KB: {e}")
                 state.kb_status = "idle"
@@ -296,12 +306,15 @@ def api_start_server():
                 'message': 'No knowledge base available. Generate one first.'
             }), 400
         
-        # TODO: Start actual MCP server process
-        # For now, simulate
         logger.info(f"Starting MCP server for KB: {state.kb_path}")
+                
+        cmd = ["uvx", "md-mcp", state.kb_path]
         
-        # Placeholder: would actually start the server
-        # state.mcp_server_process = subprocess.Popen([...])
+        # Use UTF-8 environment for Windows compatibility
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        
+        state.mcp_server_process = subprocess.Popen(cmd, env=env)
         state.mcp_server_running = True
         
         return jsonify({
