@@ -50,7 +50,10 @@ def generate(folder, output, name):
 def web(port, host, no_browser):
     """Start web UI for managing knowledge bases"""
     try:
-        from docs_mcp.web.app import start_web_server
+        try:
+            from docs_mcp.web.app import start_web_server
+        except ImportError:
+            from web.app import start_web_server
     except ImportError:
         click.echo("Error: Web UI dependencies not installed.")
         click.echo("Install with: pip install docs-mcp[web]")

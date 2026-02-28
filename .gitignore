@@ -6,7 +6,8 @@
 .Python
 env/
 venv/
-.venv/
+
+.venv*/
 ENV/
 *.egg-info/
 dist/

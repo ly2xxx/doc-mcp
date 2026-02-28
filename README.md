@@ -9,7 +9,8 @@
 
 ## 🎯 What We're Building
 
-**TL;DR:** A Streamlit app that converts code folders into an MCP knowledge base for Claude Desktop.
+**TL;DR:** A web app that converts code folders into an MCP knowledge base for AI agents like Claude Desktop.
+![code-folders-mcp](image.png)
 
 ### The Simplified Flow
 
