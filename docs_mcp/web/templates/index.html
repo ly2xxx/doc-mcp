@@ -419,32 +419,11 @@
             <div class="step">
                 <h2>
                     <span class="step-number">3</span>
-                    Connect to Claude Desktop
+                    Manage Knowledge Bases
                 </h2>
                 
-                <div class="alert alert-warning">
-                    <span>⚠️</span>
-                    <span>Generate a knowledge base first to proceed</span>
-                </div>
-                
-                <button class="btn btn-success" onclick="startServer()" id="start-btn" {% if not kb_path %}disabled{% endif %}>
-                    ▶️ Start MCP Server
-                </button>
-                <button class="btn btn-danger" onclick="stopServer()" id="stop-btn" style="display: none;">
-                    ⏹️ Stop MCP Server
-                </button>
-                
-                <div id="mcp-config" style="display: none; margin-top: 20px;">
-                    <p style="margin-bottom: 10px;"><strong>Copy this configuration to your Claude Desktop config:</strong></p>
-                    <div class="config-box">
-                        <button class="copy-btn" onclick="copyConfig()">📋 Copy</button>
-                        <pre id="config-text"></pre>
-                    </div>
-                    
-                    <div class="alert alert-success" style="margin-top: 20px;">
-                        <span>✅</span>
-                        <span>Configuration saved! Restart Claude Desktop to see your knowledge base.</span>
-                    </div>
+                <div id="kb-list-container">
+                    <div class="empty-state">Loading knowledge bases...</div>
                 </div>
             </div>
         </div>
@@ -461,12 +440,15 @@
     <script>
         // State management
         let folders = {{ folders|tojson }};
+        let availableKBs = [];
+        let runningServers = [];
+        let serverConfigs = {};
         
         // Initialize
         window.addEventListener('DOMContentLoaded', () => {
             refreshFolderList();
             checkKBStatus();
-            checkServerStatus();
+            fetchKBs();
         });
 
         // Show toast message
@@ -618,12 +600,12 @@
                 if (data && data.status === 'ready') {
                     clearInterval(interval);
                     showMessage('Knowledge base generated successfully!', 'success');
-                    document.getElementById('start-btn').disabled = false;
+                    fetchKBs(); // Refresh the KB list
                 }
             }, 2000);
         }
 
-        // Check KB status
+        // Check KB status (for the current generation process)
         async function checkKBStatus() {
             try {
                 const response = await fetch('/api/kb/status');
@@ -639,7 +621,7 @@
                         badge.innerHTML = '🟡 Processing...';
                         badge.className = 'status-badge status-processing';
                     } else if (data.status === 'ready') {
-                        badge.innerHTML = `🟢 KB Ready: ${data.kb_name}`;
+                        badge.innerHTML = `🟢 Generation Complete`;
                         badge.className = 'status-badge status-ready';
                     }
                     
@@ -652,25 +634,93 @@
             return null;
         }
 
-        // Start MCP server
-        async function startServer() {
+        // Fetch all KBs
+        async function fetchKBs() {
+            try {
+                // Also get latest server statuses
+                const serverStatusResponse = await fetch('/api/server/status');
+                const serverStatusData = await serverStatusResponse.json();
+                if (serverStatusData.success) {
+                    runningServers = serverStatusData.running_servers;
+                    serverConfigs = serverStatusData.configs;
+                }
+
+                const response = await fetch('/api/kbs');
+                const data = await response.json();
+                
+                if (data.success) {
+                    availableKBs = data.kbs;
+                    renderKBList();
+                }
+            } catch (e) {
+                console.error('Failed to fetch KBs:', e);
+            }
+        }
+
+        // Render KB List
+        function renderKBList() {
+            const container = document.getElementById('kb-list-container');
+            
+            if (availableKBs.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <span>⚠️</span>
+                        <span>Generate a knowledge base first to proceed</span>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div class="kb-list" style="display: flex; flex-direction: column; gap: 15px;">';
+            
+            availableKBs.forEach(kb => {
+                const isRunning = runningServers.includes(kb.name);
+                const configStr = isRunning ? JSON.stringify(serverConfigs[kb.name], null, 2) : '';
+                
+                html += `
+                    <div style="background: white; border: 2px solid #ddd; border-radius: 6px; padding: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="margin: 0; font-family: monospace;">📁 ${kb.name}</h3>
+                            <div>
+                                ${isRunning 
+                                    ? `<button class="btn btn-danger" onclick="stopServer('${kb.name}')">⏹️ Stop Server</button>`
+                                    : `<button class="btn btn-success" onclick="startServer('${kb.name}')">▶️ Start Server</button>`
+                                }
+                                <button class="btn btn-secondary" style="margin-left: 10px;" onclick="removeKB('${kb.name}')">🗑️ Remove</button>
+                            </div>
+                        </div>
+                        
+                        ${isRunning ? `
+                            <div style="margin-top: 15px;">
+                                <p style="margin-bottom: 5px; font-size: 0.9em;"><strong>MCP Config for Claude Desktop:</strong></p>
+                                <div class="config-box" style="margin-bottom: 0;">
+                                    <button class="copy-btn" onclick="copyConfig('${kb.name}')">📋 Copy</button>
+                                    <pre id="config-text-${kb.name}">${configStr}</pre>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // Start MCP server for a specific KB
+        async function startServer(kbName) {
             try {
                 const response = await fetch('/api/server/start', {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ kb_name: kbName })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
                     showMessage(data.message, 'success');
-                    document.getElementById('start-btn').style.display = 'none';
-                    document.getElementById('stop-btn').style.display = 'inline-flex';
-                    
-                    // Show config
-                    const configDiv = document.getElementById('mcp-config');
-                    const configText = document.getElementById('config-text');
-                    configText.textContent = JSON.stringify(data.config, null, 2);
-                    configDiv.style.display = 'block';
+                    fetchKBs(); // Refresh list to show config
                 } else {
                     showMessage(data.message, 'error');
                 }
@@ -679,20 +729,20 @@
             }
         }
 
-        // Stop MCP server
-        async function stopServer() {
+        // Stop MCP server for a specific KB
+        async function stopServer(kbName) {
             try {
                 const response = await fetch('/api/server/stop', {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ kb_name: kbName })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
                     showMessage(data.message, 'success');
-                    document.getElementById('start-btn').style.display = 'inline-flex';
-                    document.getElementById('stop-btn').style.display = 'none';
-                    document.getElementById('mcp-config').style.display = 'none';
+                    fetchKBs(); // Refresh list to hide config
                 } else {
                     showMessage(data.message, 'error');
                 }
@@ -701,31 +751,31 @@
             }
         }
 
-        // Check server status
-        async function checkServerStatus() {
+        // Remove KB
+        async function removeKB(kbName) {
+            if (!confirm(`Are you sure you want to completely remove the Knowledge Base "${kbName}"?`)) return;
+            
             try {
-                const response = await fetch('/api/server/status');
+                const response = await fetch(`/api/kbs/${kbName}`, {
+                    method: 'DELETE'
+                });
+                
                 const data = await response.json();
                 
-                if (data.success && data.running) {
-                    document.getElementById('start-btn').style.display = 'none';
-                    document.getElementById('stop-btn').style.display = 'inline-flex';
-                    
-                    if (data.config) {
-                        const configDiv = document.getElementById('mcp-config');
-                        const configText = document.getElementById('config-text');
-                        configText.textContent = JSON.stringify(data.config, null, 2);
-                        configDiv.style.display = 'block';
-                    }
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    fetchKBs(); // Refresh list
+                } else {
+                    showMessage(data.message, 'error');
                 }
             } catch (e) {
-                console.error('Failed to check server status:', e);
+                showMessage('Failed to remove KB', 'error');
             }
         }
 
         // Copy config to clipboard
-        function copyConfig() {
-            const text = document.getElementById('config-text').textContent;
+        function copyConfig(kbName) {
+            const text = document.getElementById(`config-text-${kbName}`).textContent;
             navigator.clipboard.writeText(text).then(() => {
                 showMessage('Configuration copied to clipboard!', 'success');
             }).catch(() => {

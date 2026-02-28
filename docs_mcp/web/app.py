@@ -38,8 +38,7 @@ class AppState:
     kb_name = ""
     kb_path = None
     kb_status = "idle"  # idle | processing | ready
-    mcp_server_process: typing.Any = None
-    mcp_server_running = False
+    mcp_server_processes: typing.Dict[str, typing.Any] = {}
     generation_results = []
     
 state = AppState()
@@ -98,8 +97,7 @@ def index():
                          folders=state.selected_folders,
                          kb_name=state.kb_name,
                          kb_status=state.kb_status,
-                         kb_path=state.kb_path,
-                         server_running=state.mcp_server_running)
+                         kb_path=state.kb_path)
 
 
 @app.route('/api/folders', methods=['GET'])
@@ -299,37 +297,103 @@ def api_kb_status():
     })
 
 
+@app.route('/api/kbs', methods=['GET'])
+def api_list_kbs():
+    """List all available knowledge bases"""
+    try:
+        kbs_dir = get_config_dir() / "kbs"
+        kbs = []
+        
+        if kbs_dir.exists():
+            for d in kbs_dir.iterdir():
+                if d.is_dir():
+                    # Check if server is running
+                    is_running = d.name in state.mcp_server_processes
+                    
+                    kbs.append({
+                        'name': d.name,
+                        'path': str(d),
+                        'modified': d.stat().st_mtime,
+                        'running': is_running
+                    })
+        
+        # Sort by modification time, newest first
+        kbs.sort(key=lambda x: x['modified'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'kbs': kbs
+        })
+    except Exception as e:
+        logger.error(f"Error listing KBs: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/kbs/<kb_name>', methods=['DELETE'])
+def api_remove_kb(kb_name):
+    """Remove a knowledge base"""
+    try:
+        # Stop server if running
+        if kb_name in state.mcp_server_processes:
+            process = state.mcp_server_processes[kb_name]
+            process.terminate()
+            state.mcp_server_processes.pop(kb_name, None)
+            logger.info(f"Stopped server for {kb_name}")
+            
+        # Delete directory
+        kb_path = get_config_dir() / "kbs" / kb_name
+        if kb_path.exists():
+            import shutil
+            shutil.rmtree(kb_path)
+            logger.info(f"Deleted KB directory: {kb_path}")
+            
+        return jsonify({
+            'success': True,
+            'message': f'Knowledge base {kb_name} removed'
+        })
+    except Exception as e:
+        logger.error(f"Error removing KB {kb_name}: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @app.route('/api/server/start', methods=['POST'])
 def api_start_server():
     """Start MCP server"""
     try:
-        if state.mcp_server_running:
+        data = request.get_json() or {}
+        kb_name = data.get('kb_name')
+        
+        if not kb_name:
+            return jsonify({'success': False, 'message': 'kb_name is required'}), 400
+            
+        if kb_name in state.mcp_server_processes:
             return jsonify({
                 'success': False,
-                'message': 'Server is already running'
+                'message': 'Server is already running for this KB'
             }), 400
         
-        if state.kb_status != "ready" or not state.kb_path:
+        kb_path = get_config_dir() / "kbs" / kb_name
+        if not kb_path.exists():
             return jsonify({
                 'success': False,
-                'message': 'No knowledge base available. Generate one first.'
-            }), 400
+                'message': 'Knowledge base directory not found.'
+            }), 404
         
-        logger.info(f"Starting MCP server for KB: {state.kb_path}")
+        logger.info(f"Starting MCP server for KB: {kb_path}")
                 
-        cmd = ["uvx", "md-mcp", "--folder", state.kb_path]
+        cmd = ["uvx", "md-mcp", "--folder", str(kb_path)]
         
         # Use UTF-8 environment for Windows compatibility
         env = os.environ.copy()
         env["PYTHONUTF8"] = "1"
         
-        state.mcp_server_process = subprocess.Popen(cmd, env=env)
-        state.mcp_server_running = True
+        process = subprocess.Popen(cmd, env=env)
+        state.mcp_server_processes[kb_name] = process
         
         return jsonify({
             'success': True,
             'message': 'MCP server started',
-            'config': get_mcp_config()
+            'config': get_mcp_config(kb_name, str(kb_path))
         })
     
     except Exception as e:
@@ -341,19 +405,23 @@ def api_start_server():
 def api_stop_server():
     """Stop MCP server"""
     try:
-        if not state.mcp_server_running:
+        data = request.get_json() or {}
+        kb_name = data.get('kb_name')
+        
+        if not kb_name:
+            return jsonify({'success': False, 'message': 'kb_name is required'}), 400
+            
+        if kb_name not in state.mcp_server_processes:
             return jsonify({
                 'success': False,
-                'message': 'Server is not running'
+                'message': 'Server is not running for this KB'
             }), 400
+            
+        process = state.mcp_server_processes[kb_name]
+        process.terminate()
+        state.mcp_server_processes.pop(kb_name, None)
         
-        # TODO: Stop actual MCP server process
-        if state.mcp_server_process:
-            state.mcp_server_process.terminate()
-            state.mcp_server_process = None
-        
-        state.mcp_server_running = False
-        logger.info("MCP server stopped")
+        logger.info(f"MCP server stopped for {kb_name}")
         
         return jsonify({
             'success': True,
@@ -367,11 +435,16 @@ def api_stop_server():
 
 @app.route('/api/server/status', methods=['GET'])
 def api_server_status():
-    """Get MCP server status"""
+    """Get all MCP servers status"""
+    configs = {}
+    for kb_name in state.mcp_server_processes.keys():
+        kb_path = str(get_config_dir() / "kbs" / kb_name)
+        configs[kb_name] = get_mcp_config(kb_name, kb_path)
+        
     return jsonify({
         'success': True,
-        'running': state.mcp_server_running,
-        'config': get_mcp_config() if state.mcp_server_running else None
+        'running_servers': list(state.mcp_server_processes.keys()),
+        'configs': configs
     })
 
 
@@ -413,16 +486,13 @@ def api_search():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-def get_mcp_config():
+def get_mcp_config(kb_name, kb_path):
     """Generate MCP server configuration snippet for Claude Desktop"""
-    if not state.kb_path:
-        return None
-    
     return {
         'mcpServers': {
-            state.kb_name: {
+            kb_name: {
                 'command': 'uvx',
-                'args': ['md-mcp', state.kb_path]
+                'args': ['md-mcp', '--folder', kb_path]
             }
         }
     }
