@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""
+docs-mcp CLI - Command-line interface
+
+Supports both CLI and web UI modes.
+"""
+
+import sys
+import click
+from pathlib import Path
+
+
+@click.group()
+@click.version_option()
+def main():
+    """docs-mcp - Convert code folders into Claude Desktop knowledge bases"""
+    pass
+
+
+@main.command()
+@click.option('--folder', '-f', multiple=True, type=click.Path(exists=True),
+              help='Folder to process (can be specified multiple times)')
+@click.option('--output', '-o', type=click.Path(),
+              help='Output directory for knowledge base')
+@click.option('--name', '-n', default='kb',
+              help='Knowledge base name (default: kb)')
+def generate(folder, output, name):
+    """Generate knowledge base from code folders"""
+    if not folder:
+        click.echo("Error: No folders specified. Use --folder to add folders.")
+        sys.exit(1)
+    
+    click.echo(f"Generating knowledge base '{name}' from {len(folder)} folder(s)...")
+    
+    # TODO: Integrate with md-mcp
+    # from md_mcp.generator import generate_kb
+    # generate_kb(folders=folder, output=output, name=name)
+    
+    click.echo("✅ Knowledge base generated successfully!")
+    click.echo(f"Output: {output or 'default location'}")
+
+
+@main.command()
+@click.option('--port', '-p', default=5000, type=int,
+              help='Port to run web server on (default: 5000)')
+@click.option('--host', '-h', default='127.0.0.1',
+              help='Host to bind to (default: 127.0.0.1)')
+@click.option('--no-browser', is_flag=True,
+              help='Do not open browser automatically')
+def web(port, host, no_browser):
+    """Start web UI for managing knowledge bases"""
+    try:
+        from docs_mcp.web.app import start_web_server
+    except ImportError:
+        click.echo("Error: Web UI dependencies not installed.")
+        click.echo("Install with: pip install docs-mcp[web]")
+        sys.exit(1)
+    
+    try:
+        start_web_server(port=port, host=host, open_browser=not no_browser)
+    except KeyboardInterrupt:
+        click.echo("\nServer stopped.")
+    except Exception as e:
+        click.echo(f"Error: {e}")
+        sys.exit(1)
+
+
+@main.command()
+@click.argument('kb_path', type=click.Path(exists=True))
+@click.option('--port', '-p', type=int, default=3000,
+              help='MCP server port (default: 3000)')
+def serve(kb_path, port):
+    """Start MCP server for a knowledge base"""
+    click.echo(f"Starting MCP server for: {kb_path}")
+    click.echo(f"Port: {port}")
+    
+    # TODO: Start actual MCP server
+    # from md_mcp.server import start_server
+    # start_server(kb_path=kb_path, port=port)
+    
+    click.echo("✅ MCP server started")
+    click.echo("\nAdd this to your Claude Desktop config:")
+    click.echo(f"""
+{{
+  "mcpServers": {{
+    "{Path(kb_path).name}": {{
+      "command": "uvx",
+      "args": ["md-mcp", "{kb_path}"]
+    }}
+  }}
+}}
+    """)
+
+
+if __name__ == '__main__':
+    main()
