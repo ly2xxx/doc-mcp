@@ -33,22 +33,26 @@ def generate(folder, output, name):
     click.echo(f"Generating knowledge base '{name}' from {len(folder)} folder(s)...")
     
     import subprocess
+    import os
     
     # Calculate output path
     out_dir = Path(output) if output else Path.home() / ".docs-mcp" / "kbs" / name
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_file = out_dir / "knowledge_base.md"
-    
-    cmd = ["uvx", "repomix", "--output", str(out_file)] + list(folder)
-    click.echo(f"Running command: {' '.join(cmd)}")
     
     # Use UTF-8 environment for Windows
-    import os
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
     
     try:
-        subprocess.run(cmd, check=True, env=env)
+        for f in folder:
+            f_path = str(f)
+            f_name = os.path.basename(f_path)
+            out_file = out_dir / f"{f_name}.md"
+            
+            cmd = ["uvx", "repomix", "--output", str(out_file), f_path]
+            click.echo(f"Running command: {' '.join(cmd)}")
+            subprocess.run(cmd, check=True, env=env)
+            
     except subprocess.CalledProcessError as e:
         click.echo(f"Error generating KB: {e}")
         sys.exit(1)

@@ -228,19 +228,23 @@ def api_generate_kb():
                 output_dir = get_config_dir() / "kbs" / kb_name
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
-                output_file = output_dir / "knowledge_base.md"
-                
                 # Make sure all selected folders are strings
                 folder_strs = [str(f) for f in state.selected_folders]
-                cmd = ["uvx", "repomix", "--output", str(output_file)] + folder_strs
-                logger.info(f"Running command: {' '.join(cmd)}")
                 
                 # Use UTF-8 environment for Windows compatibility with emojis
                 env = os.environ.copy()
                 env["PYTHONUTF8"] = "1"
                 
-                result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=env)
-                logger.info(f"repomix output: {result.stdout}")
+                # Run repomix for each folder individually
+                for folder_path in folder_strs:
+                    folder_name = os.path.basename(folder_path)
+                    output_file = output_dir / f"{folder_name}.md"
+                    
+                    cmd = ["uvx", "repomix", "--output", str(output_file), folder_path]
+                    logger.info(f"Running command: {' '.join(cmd)}")
+                    
+                    result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=env)
+                    logger.info(f"repomix output for {folder_name}: {result.stdout}")
                 
                 # Update state
                 state.kb_path = str(output_dir)
