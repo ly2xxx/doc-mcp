@@ -369,7 +369,13 @@
 
                 <div class="input-group">
                     <label for="folder-path">Folder Path:</label>
-                    <input type="text" id="folder-path" placeholder="/path/to/your/codebase">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="folder-path" placeholder="/path/to/your/codebase" style="flex: 1;">
+                        <button class="btn btn-secondary" onclick="browseFolder()" title="Browse local folders"
+                            style="padding: 12px 16px;">
+                            📁 Browse
+                        </button>
+                    </div>
                 </div>
 
                 <button class="btn btn-primary" onclick="addFolder()">
@@ -462,6 +468,20 @@
             setTimeout(() => {
                 msg.className = '';
             }, 3000);
+        }
+
+        // Browse for folder using native dialog
+        async function browseFolder() {
+            try {
+                const response = await fetch('/api/browse-folder');
+                const data = await response.json();
+
+                if (data.success && data.path) {
+                    document.getElementById('folder-path').value = data.path;
+                }
+            } catch (e) {
+                console.error('Failed to open folder browser:', e);
+            }
         }
 
         // Add folder

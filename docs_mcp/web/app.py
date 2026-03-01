@@ -208,6 +208,43 @@ def api_clear_folders():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/browse-folder', methods=['GET'])
+def api_browse_folder():
+    """Open native file dialog to select a folder"""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        
+        # Create a root window and hide it
+        root = tk.Tk()
+        root.withdraw()
+        
+        # Make it appear on top of other windows
+        root.attributes('-topmost', True)
+        
+        folder_path = filedialog.askdirectory(
+            title="Select Code Folder"
+        )
+        
+        # Destroy the root window
+        root.destroy()
+        
+        if folder_path:
+            return jsonify({
+                'success': True,
+                'path': folder_path
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'No folder selected'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error opening folder browser: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @app.route('/api/generate', methods=['POST'])
 def api_generate_kb():
     """Generate knowledge base from selected folders"""
