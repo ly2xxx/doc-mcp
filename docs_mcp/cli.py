@@ -133,5 +133,39 @@ def serve(kb_path, port):
     """)
 
 
+@main.command()
+@click.argument('kb_name')
+def remove(kb_name):
+    """Remove a knowledge base and its MCP server configuration"""
+    import os
+    import shutil
+    import subprocess
+    
+    click.echo(f"Removing knowledge base: {kb_name}")
+    
+    # Remove from Claude Desktop config
+    try:
+        cmd = ["uvx", "md-mcp", "--remove", kb_name]
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        subprocess.run(cmd, env=env, capture_output=True, check=False)
+        click.echo(f"✓ Removed '{kb_name}' from Claude Desktop configuration")
+    except Exception as e:
+        click.echo(f"Failed to remove Claude Desktop config: {e}", err=True)
+        
+    # Remove directory
+    kb_path = Path.home() / ".docs-mcp" / "kbs" / kb_name
+    if kb_path.exists():
+        try:
+            shutil.rmtree(kb_path)
+            click.echo(f"✓ Deleted knowledge base files")
+        except Exception as e:
+            click.echo(f"Failed to delete directory {kb_path}: {e}", err=True)
+    else:
+        click.echo(f"Knowledge base directory not found at {kb_path}")
+        
+    click.echo(f"✅ Successfully removed '{kb_name}'")
+
+
 if __name__ == '__main__':
     main()

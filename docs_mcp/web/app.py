@@ -340,6 +340,16 @@ def api_remove_kb(kb_name):
             state.mcp_server_processes.pop(kb_name, None)
             logger.info(f"Stopped server for {kb_name}")
             
+        # Try to remove from Claude Desktop config
+        try:
+            cmd = ["uvx", "md-mcp", "--remove", kb_name]
+            env = os.environ.copy()
+            env["PYTHONUTF8"] = "1"
+            subprocess.run(cmd, env=env, capture_output=True, check=False)
+            logger.info(f"Removed Claude Desktop config for {kb_name}")
+        except Exception as e:
+            logger.error(f"Failed to remove Claude Desktop config: {e}")
+            
         # Delete directory
         kb_path = get_config_dir() / "kbs" / kb_name
         if kb_path.exists():
@@ -422,6 +432,16 @@ def api_stop_server():
         state.mcp_server_processes.pop(kb_name, None)
         
         logger.info(f"MCP server stopped for {kb_name}")
+        
+        # Try to remove from Claude Desktop config
+        try:
+            cmd = ["uvx", "md-mcp", "--remove", kb_name]
+            env = os.environ.copy()
+            env["PYTHONUTF8"] = "1"
+            subprocess.run(cmd, env=env, capture_output=True, check=False)
+            logger.info(f"Removed Claude Desktop config for {kb_name}")
+        except Exception as e:
+            logger.error(f"Failed to remove Claude Desktop config: {e}")
         
         return jsonify({
             'success': True,

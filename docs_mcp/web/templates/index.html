@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,7 +24,7 @@
             margin: 0 auto;
             background: white;
             border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             overflow: hidden;
         }
 
@@ -314,7 +315,7 @@
             right: 20px;
             padding: 15px 20px;
             border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             display: none;
             z-index: 1000;
             max-width: 400px;
@@ -330,6 +331,7 @@
                 transform: translateX(400px);
                 opacity: 0;
             }
+
             to {
                 transform: translateX(0);
                 opacity: 1;
@@ -349,6 +351,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -363,19 +366,19 @@
                     <span class="step-number">1</span>
                     Select Code Folders
                 </h2>
-                
+
                 <div class="input-group">
                     <label for="folder-path">Folder Path:</label>
                     <input type="text" id="folder-path" placeholder="/path/to/your/codebase">
                 </div>
-                
+
                 <button class="btn btn-primary" onclick="addFolder()">
                     ➕ Add Folder
                 </button>
                 <button class="btn btn-secondary" onclick="clearFolders()">
                     🗑️ Clear All
                 </button>
-                
+
                 <div id="folder-list" class="folder-list" style="margin-top: 20px;">
                     <div class="empty-state">No folders selected yet</div>
                 </div>
@@ -387,29 +390,29 @@
                     <span class="step-number">2</span>
                     Generate Knowledge Base
                 </h2>
-                
+
                 <div class="alert alert-info">
                     <span>ℹ️</span>
                     <span>Select at least one folder above to proceed</span>
                 </div>
-                
+
                 <div class="input-group">
                     <label for="kb-name">Knowledge Base Name:</label>
                     <input type="text" id="kb-name" placeholder="my-project-kb" value="{{ kb_name }}">
                 </div>
-                
+
                 <button class="btn btn-success" onclick="generateKB()" id="generate-btn">
                     🚀 Generate Knowledge Base
                 </button>
-                
+
                 <div style="margin-top: 20px;">
                     <div class="status-badge status-{{ kb_status }}" id="kb-status">
                         {% if kb_status == 'idle' %}
-                            ⚪ No KB created yet
+                        ⚪ No KB created yet
                         {% elif kb_status == 'processing' %}
-                            🟡 Processing...
+                        🟡 Processing...
                         {% elif kb_status == 'ready' %}
-                            🟢 KB Ready
+                        🟢 KB Ready
                         {% endif %}
                     </div>
                 </div>
@@ -421,7 +424,7 @@
                     <span class="step-number">3</span>
                     Manage Knowledge Bases
                 </h2>
-                
+
                 <div id="kb-list-container">
                     <div class="empty-state">Loading knowledge bases...</div>
                 </div>
@@ -429,7 +432,7 @@
         </div>
 
         <div class="footer">
-            Built with ❤️ using <a href="https://pypi.org/project/md-mcp/">md-mcp</a> | 
+            Built with ❤️ using <a href="https://pypi.org/project/md-mcp/">md-mcp</a> |
             <a href="https://github.com/ly2xxx/docs-mcp">Documentation</a>
         </div>
     </div>
@@ -439,11 +442,11 @@
 
     <script>
         // State management
-        let folders = {{ folders|tojson }};
+        let folders = {{ folders| tojson }};
         let availableKBs = [];
         let runningServers = [];
         let serverConfigs = {};
-        
+
         // Initialize
         window.addEventListener('DOMContentLoaded', () => {
             refreshFolderList();
@@ -465,21 +468,21 @@
         async function addFolder() {
             const input = document.getElementById('folder-path');
             const path = input.value.trim();
-            
+
             if (!path) {
                 showMessage('Please enter a folder path', 'error');
                 return;
             }
-            
+
             try {
                 const response = await fetch('/api/folders', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ path })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     folders = data.folders.map(f => f.path);
                     refreshFolderList();
@@ -499,9 +502,9 @@
                 const response = await fetch(`/api/folders/${index}`, {
                     method: 'DELETE'
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     folders = data.folders.map(f => f.path);
                     refreshFolderList();
@@ -517,14 +520,14 @@
         // Clear all folders
         async function clearFolders() {
             if (!confirm('Remove all folders?')) return;
-            
+
             try {
                 const response = await fetch('/api/folders/clear', {
                     method: 'POST'
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     folders = [];
                     refreshFolderList();
@@ -540,12 +543,12 @@
         // Refresh folder list UI
         function refreshFolderList() {
             const list = document.getElementById('folder-list');
-            
+
             if (folders.length === 0) {
                 list.innerHTML = '<div class="empty-state">No folders selected yet</div>';
                 return;
             }
-            
+
             list.innerHTML = folders.map((folder, index) => `
                 <div class="folder-item">
                     <span class="folder-path">${folder}</span>
@@ -557,31 +560,31 @@
         // Generate knowledge base
         async function generateKB() {
             const kbName = document.getElementById('kb-name').value.trim();
-            
+
             if (!kbName) {
                 showMessage('Please enter a knowledge base name', 'error');
                 return;
             }
-            
+
             if (folders.length === 0) {
                 showMessage('Please select at least one folder', 'error');
                 return;
             }
-            
+
             try {
                 const response = await fetch('/api/generate', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ kb_name: kbName })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     showMessage(data.message, 'success');
                     document.getElementById('kb-status').innerHTML = '🟡 Processing...';
                     document.getElementById('kb-status').className = 'status-badge status-processing';
-                    
+
                     // Poll for status
                     pollKBStatus();
                 } else {
@@ -596,7 +599,7 @@
         function pollKBStatus() {
             const interval = setInterval(async () => {
                 const data = await checkKBStatus();
-                
+
                 if (data && data.status === 'ready') {
                     clearInterval(interval);
                     showMessage('Knowledge base generated successfully!', 'success');
@@ -610,10 +613,10 @@
             try {
                 const response = await fetch('/api/kb/status');
                 const data = await response.json();
-                
+
                 if (data.success) {
                     const badge = document.getElementById('kb-status');
-                    
+
                     if (data.status === 'idle') {
                         badge.innerHTML = '⚪ No KB created yet';
                         badge.className = 'status-badge status-idle';
@@ -624,13 +627,13 @@
                         badge.innerHTML = `🟢 Generation Complete`;
                         badge.className = 'status-badge status-ready';
                     }
-                    
+
                     return data;
                 }
             } catch (e) {
                 console.error('Failed to check KB status:', e);
             }
-            
+
             return null;
         }
 
@@ -647,7 +650,7 @@
 
                 const response = await fetch('/api/kbs');
                 const data = await response.json();
-                
+
                 if (data.success) {
                     availableKBs = data.kbs;
                     renderKBList();
@@ -660,7 +663,7 @@
         // Render KB List
         function renderKBList() {
             const container = document.getElementById('kb-list-container');
-            
+
             if (availableKBs.length === 0) {
                 container.innerHTML = `
                     <div class="alert alert-warning">
@@ -670,29 +673,29 @@
                 `;
                 return;
             }
-            
+
             let html = '<div class="kb-list" style="display: flex; flex-direction: column; gap: 15px;">';
-            
+
             availableKBs.forEach(kb => {
                 const isRunning = runningServers.includes(kb.name);
                 const configStr = isRunning ? JSON.stringify(serverConfigs[kb.name], null, 2) : '';
-                
+
                 html += `
                     <div style="background: white; border: 2px solid #ddd; border-radius: 6px; padding: 15px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                             <h3 style="margin: 0; font-family: monospace;">📁 ${kb.name}</h3>
                             <div>
-                                ${isRunning 
-                                    ? `<button class="btn btn-danger" onclick="stopServer('${kb.name}')">⏹️ Stop Server</button>`
-                                    : `<button class="btn btn-success" onclick="startServer('${kb.name}')">▶️ Start Server</button>`
-                                }
+                                ${isRunning
+                        ? `<button class="btn btn-danger" onclick="stopServer('${kb.name}')">⏹️ Stop Server</button>`
+                        : `<button class="btn btn-success" onclick="startServer('${kb.name}')">▶️ Start Server</button>`
+                    }
                                 <button class="btn btn-secondary" style="margin-left: 10px;" onclick="removeKB('${kb.name}')">🗑️ Remove</button>
                             </div>
                         </div>
                         
                         ${isRunning ? `
                             <div style="margin-top: 15px;">
-                                <p style="margin-bottom: 5px; font-size: 0.9em;"><strong>MCP Config for Claude Desktop:</strong></p>
+                                <p style="margin-bottom: 5px; font-size: 0.9em;"><strong>MCP Config:</strong></p>
                                 <div class="config-box" style="margin-bottom: 0;">
                                     <button class="copy-btn" onclick="copyConfig('${kb.name}')">📋 Copy</button>
                                     <pre id="config-text-${kb.name}">${configStr}</pre>
@@ -702,7 +705,7 @@
                     </div>
                 `;
             });
-            
+
             html += '</div>';
             container.innerHTML = html;
         }
@@ -712,12 +715,12 @@
             try {
                 const response = await fetch('/api/server/start', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ kb_name: kbName })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     showMessage(data.message, 'success');
                     fetchKBs(); // Refresh list to show config
@@ -734,12 +737,12 @@
             try {
                 const response = await fetch('/api/server/stop', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ kb_name: kbName })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     showMessage(data.message, 'success');
                     fetchKBs(); // Refresh list to hide config
@@ -754,14 +757,14 @@
         // Remove KB
         async function removeKB(kbName) {
             if (!confirm(`Are you sure you want to completely remove the Knowledge Base "${kbName}"?`)) return;
-            
+
             try {
                 const response = await fetch(`/api/kbs/${kbName}`, {
                     method: 'DELETE'
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     showMessage(data.message, 'success');
                     fetchKBs(); // Refresh list
@@ -798,4 +801,5 @@
         });
     </script>
 </body>
+
 </html>
