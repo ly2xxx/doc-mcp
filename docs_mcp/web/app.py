@@ -18,6 +18,14 @@ from functools import wraps
 
 from flask import Flask, render_template, request, jsonify, abort
 
+try:
+    from md_mcp.scanner import MarkdownScanner
+    from md_mcp.chunking import MarkdownChunker
+except ImportError:
+    # Fallback if not installed (though it should be a dependency)
+    MarkdownScanner = None
+    MarkdownChunker = None
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +48,7 @@ class AppState:
     kb_status = "idle"  # idle | processing | ready
     mcp_server_processes: typing.Dict[str, typing.Any] = {}
     generation_results = []
+    _search_cache = {} # {kb_path: (chunks, mtime)}
     
 state = AppState()
 
@@ -484,15 +493,53 @@ def api_search():
         if not query:
             return jsonify({'success': False, 'message': 'Query required'}), 400
         
-        # TODO: Implement actual search
-        # For now, return mock results
+        if not MarkdownScanner or not MarkdownChunker:
+            return jsonify({
+                'success': False,
+                'message': 'md-mcp library not found. Search unavailable.'
+            }), 500
+
+        if not state.kb_path:
+            return jsonify({
+                'success': False,
+                'message': 'Knowledge base path not set'
+            }), 400
+
+        kb_path = Path(state.kb_path)
+        
+        # Get all markdown files and chunk them
+        # Use cache if available and directory hasn't changed
+        current_mtime = kb_path.stat().st_mtime
+        cache_entry = state._search_cache.get(str(kb_path))
+        
+        if cache_entry and cache_entry[1] == current_mtime:
+            chunks = cache_entry[0]
+        else:
+            logger.info(f"Building search index for {kb_path}...")
+            scanner = MarkdownScanner(str(kb_path))
+            chunker = MarkdownChunker()
+            
+            files = scanner.scan()
+            chunks = []
+            for f in files:
+                f.load()
+                chunks.extend(chunker.chunk_markdown(f.content, file_path=f.relative_path))
+            
+            state._search_cache[str(kb_path)] = (chunks, current_mtime)
+            logger.info(f"Built index with {len(chunks)} chunks")
+
+        # Perform search
+        chunker = MarkdownChunker()
+        snippets = chunker.search_chunks(chunks, query, max_results=5)
+        
         results = [
             {
-                'file': f'file{i}.md',
-                'score': 0.9 - (i * 0.1),
-                'snippet': f'...search result {i} for "{query}"...'
+                'file': str(s.file_path) if s.file_path else "",
+                'score': float(s.match_score),
+                'snippet': s.snippet,
+                'header': str(s.header_path) if s.header_path else "Root"
             }
-            for i in range(1, 4)
+            for s in snippets
         ]
         
         return jsonify({
