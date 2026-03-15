@@ -26,6 +26,10 @@ The workflow `publish-testpypi.yml` automatically builds and publishes to TestPy
 
 After successful deployment:
 ```bash
+# With uv
+uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ docs-mcp
+
+# Or with pip
 pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ docs-mcp
 ```
 

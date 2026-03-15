@@ -214,14 +214,14 @@ C:\code\docs-mcp\
 ## 🔧 Quick Start (When Ready)
 
 ```bash
-# Install dependencies
-pip install streamlit md-mcp
+# Install with uv
+uv sync
 
 # Install repomix globally
 npm install -g repomix
 
 # Run the app
-streamlit run app/main.py
+uv run streamlit run app/main.py
 
 # Use the UI to:
 # 1. Add your code folders
