@@ -3,7 +3,7 @@
 **Status:** 🚀 MVP Development  
 **Created:** 2026-02-18  
 **Pivoted:** 2026-02-27 - **Focus: Code folders first**  
-**Owner:** Master Yang
+**Owner:** Yang Li
 
 ---
 
@@ -86,8 +86,7 @@ for folder in selected_folders:
 
 ```bash
 # For each folder, run repomix:
-cd /path/to/folder
-repomix --output {folder-name}.md --style markdown
+uvx repomix --output {folder-name}.md --style markdown /path/to/folder
 ```
 
 **Result:** One consolidated `.md` file per code folder with full context.
@@ -122,8 +121,8 @@ kb.start_mcp_server()  # Listens on stdio/port
 {
   "mcpServers": {
     "my-project": {
-      "command": "python",
-      "args": ["-m", "md_mcp.server", "--kb=my-project"]
+      "command": "uvx",
+      "args": ["md-mcp", "/path/to/my-project"]
     }
   }
 }
@@ -217,11 +216,8 @@ C:\code\docs-mcp\
 # Install with uv
 uv sync
 
-# Install repomix globally
-npm install -g repomix
-
 # Run the app
-uv run streamlit run app/main.py
+uv run docs-mcp web
 
 # Use the UI to:
 # 1. Add your code folders
