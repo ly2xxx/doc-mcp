@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # Required for OIDC Trusted Publishing
 
 jobs:
   build-and-publish:
@@ -36,6 +37,5 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
-          password: ${{ secrets.TESTPYPI_TOKEN }}
-          attestations: false
+          attestations: true
           skip-existing: true
